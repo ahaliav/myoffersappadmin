@@ -53,10 +53,36 @@ export interface AdminUser {
   UpdatedAt?: string;
 }
 
+export interface AiPromptDto {
+  id: number;
+  key: string;
+  name: string;
+  systemPrompt: string;
+  userPromptTemplate?: string | null;
+  model?: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiPromptUpdateDto {
+  name: string;
+  systemPrompt: string;
+  userPromptTemplate?: string | null;
+  model?: string | null;
+  sortOrder: number;
+}
+
 export const adminApi = {
   getLogs: (params?: { limit?: number; offset?: number; level?: string; from?: string; to?: string }) =>
     axiosClient.get<ApplicationLogsResponse>('/api/admin/logs', { params }),
 
   getUsers: () =>
     axiosClient.get<AdminUser[]>('/api/admin/users'),
+
+  getAiPrompts: () =>
+    axiosClient.get<AiPromptDto[]>('/api/admin/ai-prompts'),
+
+  updateAiPrompt: (id: number, data: AiPromptUpdateDto) =>
+    axiosClient.put<AiPromptDto>(`/api/admin/ai-prompts/${id}`, data),
 };

@@ -7,6 +7,7 @@ import {
   Users,
   LogOut,
   Shield,
+  Sparkles,
 } from 'lucide-react';
 
 const Page = styled.div`
@@ -132,6 +133,10 @@ export default function Layout() {
           <NavItem to="/users">
             <Users size={20} />
             משתמשים
+          </NavItem>
+          <NavItem to="/prompts">
+            <Sparkles size={20} />
+            פרומפטים AI
           </NavItem>
         </Nav>
         <UserBlock>

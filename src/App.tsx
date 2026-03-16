@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Logs from './pages/Logs';
 import Users from './pages/Users';
+import Prompts from './pages/Prompts';
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
               <Route index element={<Dashboard />} />
               <Route path="logs" element={<Logs />} />
               <Route path="users" element={<Users />} />
+              <Route path="prompts" element={<Prompts />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
