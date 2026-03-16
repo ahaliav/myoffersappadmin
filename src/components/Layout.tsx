@@ -8,6 +8,8 @@ import {
   LogOut,
   Shield,
   Sparkles,
+  CreditCard,
+  Package,
 } from 'lucide-react';
 
 const Page = styled.div`
@@ -137,6 +139,14 @@ export default function Layout() {
           <NavItem to="/prompts">
             <Sparkles size={20} />
             פרומפטים AI
+          </NavItem>
+          <NavItem to="/subscriptions">
+            <CreditCard size={20} />
+            מנויים
+          </NavItem>
+          <NavItem to="/plans">
+            <Package size={20} />
+            חבילות
           </NavItem>
         </Nav>
         <UserBlock>

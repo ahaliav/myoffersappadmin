@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { supabase, clearSupabaseAuthStorage } from '../lib/supabaseClient';
 
+// baseURL = origin only (e.g. https://ahaliav.me). Paths = /api/admin/... so final URL has single /api
 const axiosClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'https://ahaliav.me/api/',
   headers: { 'Content-Type': 'application/json' },

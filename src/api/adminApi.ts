@@ -73,6 +73,64 @@ export interface AiPromptUpdateDto {
   sortOrder: number;
 }
 
+export interface SubscriptionAdminDto {
+  id: number;
+  userId: number;
+  userName: string;
+  userEmail: string;
+  planId: number;
+  planName: string;
+  planCode: string;
+  isTrial: boolean;
+  trialStartDate?: string | null;
+  trialEndDate?: string | null;
+  startDate: string;
+  endDate?: string | null;
+  amount: number;
+  status: string;
+  autoRenew: boolean;
+  renewalDiscountPercent?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminUpdateSubscriptionDto {
+  status?: string;
+  endDate?: string | null;
+  autoRenew?: boolean;
+  renewalDiscountPercent?: number | null;
+}
+
+export interface PlanDto {
+  id: number;
+  name: string;
+  code: string;
+  description?: string | null;
+  price: number;
+  currency: string;
+  billingPeriod: string;
+  trialDays?: number | null;
+  isActive: boolean;
+  displayOrder: number;
+  features?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePlanRequest {
+  name: string;
+  code: string;
+  description?: string | null;
+  price: number;
+  currency: string;
+  billingPeriod: string;
+  trialDays?: number | null;
+  isActive: boolean;
+  displayOrder: number;
+  features?: string | null;
+}
+
+// baseURL includes /api/ and server uses PathBase /api → paths need /api/admin to get /api/api/admin
 export const adminApi = {
   getLogs: (params?: { limit?: number; offset?: number; level?: string; from?: string; to?: string }) =>
     axiosClient.get<ApplicationLogsResponse>('/api/admin/logs', { params }),
@@ -85,4 +143,22 @@ export const adminApi = {
 
   updateAiPrompt: (id: number, data: AiPromptUpdateDto) =>
     axiosClient.put<AiPromptDto>(`/api/admin/ai-prompts/${id}`, data),
+
+  getSubscriptions: () =>
+    axiosClient.get<SubscriptionAdminDto[]>('/api/admin/subscriptions'),
+
+  updateSubscription: (id: number, data: AdminUpdateSubscriptionDto) =>
+    axiosClient.put<SubscriptionAdminDto>(`/api/admin/subscriptions/${id}`, data),
+
+  getPlans: () =>
+    axiosClient.get<PlanDto[]>('/api/admin/plans'),
+
+  createPlan: (data: CreatePlanRequest) =>
+    axiosClient.post<PlanDto>('/api/admin/plans', data),
+
+  updatePlan: (id: number, data: CreatePlanRequest) =>
+    axiosClient.put<PlanDto>(`/api/admin/plans/${id}`, data),
+
+  deletePlan: (id: number) =>
+    axiosClient.delete(`/api/admin/plans/${id}`),
 };

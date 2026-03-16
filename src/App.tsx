@@ -10,6 +10,8 @@ import Dashboard from './pages/Dashboard';
 import Logs from './pages/Logs';
 import Users from './pages/Users';
 import Prompts from './pages/Prompts';
+import Subscriptions from './pages/Subscriptions';
+import Plans from './pages/Plans';
 
 function App() {
   return (
@@ -31,6 +33,8 @@ function App() {
               <Route path="logs" element={<Logs />} />
               <Route path="users" element={<Users />} />
               <Route path="prompts" element={<Prompts />} />
+              <Route path="subscriptions" element={<Subscriptions />} />
+              <Route path="plans" element={<Plans />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
