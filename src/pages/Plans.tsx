@@ -141,6 +141,8 @@ function norm(row: Record<string, unknown>): PlanDto {
     isActive: (row.isActive ?? row.IsActive ?? true) as boolean,
     displayOrder: (row.displayOrder ?? row.DisplayOrder ?? 0) as number,
     features: (row.features ?? row.Features ?? null) as string | null,
+    aiMonthlyRequestLimit: (row.aiMonthlyRequestLimit ?? row.AiMonthlyRequestLimit ?? null) as number | null,
+    aiMonthlyTokenLimit: (row.aiMonthlyTokenLimit ?? row.AiMonthlyTokenLimit ?? null) as number | null,
     createdAt: (row.createdAt ?? row.CreatedAt ?? '') as string,
     updatedAt: (row.updatedAt ?? row.UpdatedAt ?? '') as string,
   };
@@ -157,6 +159,8 @@ const emptyForm: CreatePlanRequest = {
   isActive: true,
   displayOrder: 0,
   features: '',
+  aiMonthlyRequestLimit: null,
+  aiMonthlyTokenLimit: null,
 };
 
 export default function Plans() {
@@ -207,6 +211,14 @@ export default function Plans() {
         price: Number(addForm.price) || 0,
         displayOrder: Number(addForm.displayOrder) || 0,
         trialDays: addForm.trialDays != null && String(addForm.trialDays).trim() !== '' ? Number(addForm.trialDays) : null,
+        aiMonthlyRequestLimit:
+          addForm.aiMonthlyRequestLimit != null && !Number.isNaN(Number(addForm.aiMonthlyRequestLimit))
+            ? Number(addForm.aiMonthlyRequestLimit)
+            : null,
+        aiMonthlyTokenLimit:
+          addForm.aiMonthlyTokenLimit != null && !Number.isNaN(Number(addForm.aiMonthlyTokenLimit))
+            ? Number(addForm.aiMonthlyTokenLimit)
+            : null,
       });
       await load();
       setAddForm(emptyForm);
@@ -233,6 +245,8 @@ export default function Plans() {
         isActive: p.isActive,
         displayOrder: p.displayOrder,
         features: p.features ?? '',
+        aiMonthlyRequestLimit: p.aiMonthlyRequestLimit ?? null,
+        aiMonthlyTokenLimit: p.aiMonthlyTokenLimit ?? null,
       },
     }));
   };
@@ -255,6 +269,14 @@ export default function Plans() {
         price: Number(form.price) || 0,
         displayOrder: Number(form.displayOrder) || 0,
         trialDays: form.trialDays != null && String(form.trialDays).trim() !== '' ? Number(form.trialDays) : null,
+        aiMonthlyRequestLimit:
+          form.aiMonthlyRequestLimit != null && !Number.isNaN(Number(form.aiMonthlyRequestLimit))
+            ? Number(form.aiMonthlyRequestLimit)
+            : null,
+        aiMonthlyTokenLimit:
+          form.aiMonthlyTokenLimit != null && !Number.isNaN(Number(form.aiMonthlyTokenLimit))
+            ? Number(form.aiMonthlyTokenLimit)
+            : null,
       });
       await load();
       setEditing((prev) => {
@@ -411,6 +433,38 @@ export default function Plans() {
                 placeholder='["תכונה 1", "תכונה 2"]'
               />
             </div>
+            <FlexRow style={{ gap: '1rem', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 160px' }}>
+                <Label>מכסת בקשות AI לחודש (ריק = ברירת מחדל)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={addForm.aiMonthlyRequestLimit ?? ''}
+                  onChange={(e) =>
+                    setAddField(
+                      'aiMonthlyRequestLimit',
+                      e.target.value === '' ? null : parseInt(e.target.value, 10)
+                    )
+                  }
+                  placeholder="למשל 100"
+                />
+              </div>
+              <div style={{ flex: '1 1 160px' }}>
+                <Label>מכסת טוקנים AI לחודש (ריק = ברירת מחדל, 0 = ללא תקרה)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={addForm.aiMonthlyTokenLimit ?? ''}
+                  onChange={(e) =>
+                    setAddField(
+                      'aiMonthlyTokenLimit',
+                      e.target.value === '' ? null : parseInt(e.target.value, 10)
+                    )
+                  }
+                  placeholder="0 = ללא תקרה"
+                />
+              </div>
+            </FlexRow>
             <FlexRow>
               <Btn onClick={handleCreate} disabled={savingAdd}>
                 <Save size={16} />
@@ -536,6 +590,38 @@ export default function Plans() {
                           onChange={(e) => setEditField(plan.id, 'features', e.target.value)}
                         />
                       </div>
+                      <FlexRow style={{ gap: '1rem', flexWrap: 'wrap' }}>
+                        <div style={{ flex: '1 1 160px' }}>
+                          <Label>מכסת בקשות AI לחודש (ריק = ברירת מחדל)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={form.aiMonthlyRequestLimit ?? ''}
+                            onChange={(e) =>
+                              setEditField(
+                                plan.id,
+                                'aiMonthlyRequestLimit',
+                                e.target.value === '' ? null : parseInt(e.target.value, 10)
+                              )
+                            }
+                          />
+                        </div>
+                        <div style={{ flex: '1 1 160px' }}>
+                          <Label>מכסת טוקנים (0 = ללא תקרה)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={form.aiMonthlyTokenLimit ?? ''}
+                            onChange={(e) =>
+                              setEditField(
+                                plan.id,
+                                'aiMonthlyTokenLimit',
+                                e.target.value === '' ? null : parseInt(e.target.value, 10)
+                              )
+                            }
+                          />
+                        </div>
+                      </FlexRow>
                       <FlexRow>
                         <Btn onClick={() => saveEdit(plan.id)} disabled={savingId === plan.id}>
                           <Save size={16} />

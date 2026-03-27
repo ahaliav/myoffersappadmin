@@ -113,6 +113,8 @@ export interface PlanDto {
   isActive: boolean;
   displayOrder: number;
   features?: string | null;
+  aiMonthlyRequestLimit?: number | null;
+  aiMonthlyTokenLimit?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -128,6 +130,67 @@ export interface CreatePlanRequest {
   isActive: boolean;
   displayOrder: number;
   features?: string | null;
+  aiMonthlyRequestLimit?: number | null;
+  aiMonthlyTokenLimit?: number | null;
+}
+
+export interface AdminAiUsageRowDto {
+  userId: number;
+  email: string;
+  fullName: string;
+  planName?: string | null;
+  planCode?: string | null;
+  baseRequestLimit: number;
+  baseTokenLimit?: number | null;
+  bonusMonthlyRequests: number;
+  bonusMonthlyTokens: number;
+  overrideRequestLimit?: number | null;
+  overrideTokenLimit?: number | null;
+  effectiveRequestLimit: number;
+  effectiveTokenLimit?: number | null;
+  requestsUsed: number;
+  tokensUsed: number;
+  periodYearMonth: string;
+}
+
+export interface AdminUpdateUserAiQuotaDto {
+  bonusMonthlyRequests: number;
+  bonusMonthlyTokens: number;
+  overrideRequestLimit?: number | null;
+  overrideTokenLimit?: number | null;
+}
+
+export interface AdminAiUsageLogDto {
+  id: number;
+  createdAt: string;
+  operation: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  success: boolean;
+}
+
+export interface AdminAiUsageLogsResponse {
+  items: AdminAiUsageLogDto[];
+  total: number;
+}
+
+export interface MyAiUsageStatusDto {
+  periodYearMonth: string;
+  requestsUsed: number;
+  tokensUsed: number;
+  effectiveRequestLimit: number;
+  effectiveTokenLimit?: number | null;
+  remainingRequests: number;
+  remainingTokens?: number | null;
+  planName?: string | null;
+  planCode?: string | null;
+  baseRequestLimit: number;
+  baseTokenLimit?: number | null;
+  bonusMonthlyRequests: number;
+  bonusMonthlyTokens: number;
+  overrideRequestLimit?: number | null;
+  overrideTokenLimit?: number | null;
 }
 
 // baseURL includes /api/ and server uses PathBase /api → paths need /api/admin to get /api/api/admin
@@ -161,4 +224,13 @@ export const adminApi = {
 
   deletePlan: (id: number) =>
     axiosClient.delete(`/api/admin/plans/${id}`),
+
+  getAiUsageOverview: () =>
+    axiosClient.get<AdminAiUsageRowDto[]>('/api/admin/ai-usage'),
+
+  getAiUsageLogs: (userId: number, params?: { limit?: number; offset?: number }) =>
+    axiosClient.get<AdminAiUsageLogsResponse>(`/api/admin/ai-usage/${userId}/logs`, { params }),
+
+  updateUserAiQuota: (userId: number, data: AdminUpdateUserAiQuotaDto) =>
+    axiosClient.put<MyAiUsageStatusDto>(`/api/admin/ai-usage/${userId}/quota`, data),
 };

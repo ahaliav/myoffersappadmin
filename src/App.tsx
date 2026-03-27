@@ -12,6 +12,7 @@ import Users from './pages/Users';
 import Prompts from './pages/Prompts';
 import Subscriptions from './pages/Subscriptions';
 import Plans from './pages/Plans';
+import AiUsage from './pages/AiUsage';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
               <Route path="prompts" element={<Prompts />} />
               <Route path="subscriptions" element={<Subscriptions />} />
               <Route path="plans" element={<Plans />} />
+              <Route path="ai-usage" element={<AiUsage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

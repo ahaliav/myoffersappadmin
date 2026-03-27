@@ -10,6 +10,7 @@ import {
   Sparkles,
   CreditCard,
   Package,
+  Activity,
 } from 'lucide-react';
 
 const Page = styled.div`
@@ -147,6 +148,10 @@ export default function Layout() {
           <NavItem to="/plans">
             <Package size={20} />
             חבילות
+          </NavItem>
+          <NavItem to="/ai-usage">
+            <Activity size={20} />
+            מכסות AI
           </NavItem>
         </Nav>
         <UserBlock>
