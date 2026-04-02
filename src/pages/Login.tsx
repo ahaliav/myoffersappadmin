@@ -180,10 +180,10 @@ export default function Login() {
       <Card>
         <Logo>
           <Shield size={32} />
-          MyOffers Admin
+          TooDay Admin
         </Logo>
         <Title>ממשק ניהול</Title>
-        <Subtitle>התחבר עם חשבון MyOffers</Subtitle>
+        <Subtitle>התחבר עם חשבון TooDay</Subtitle>
         <Form onSubmit={handleSubmit}>
           {error && <Error>{error}</Error>}
           <div>

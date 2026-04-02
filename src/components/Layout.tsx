@@ -122,7 +122,7 @@ export default function Layout() {
       <Sidebar>
         <Logo>
           <Shield size={28} />
-          MyOffers Admin
+          TooDay Admin
         </Logo>
         <Nav>
           <NavItem to="/" end>
