@@ -224,7 +224,10 @@ export default function Prompts() {
     <PageWrap>
       <Title>פרומפטים של AI</Title>
       <p style={{ color: '#64748b', marginBottom: '1rem' }}>
-        ניהול הפרומפטים של כפתור ה-AI בהגשת הצעות. משתנים בתבנית: {'{title}'}, {'{description}'}, {'{examples}'}, {'{text}'}, {'{instruction}'}.
+        ניהול פרומפטי AI: הצעות מחיר — {'{title}'}, {'{description}'}, {'{examples}'}, {'{text}'}, {'{instruction}'}.
+        עמוד נתונים (זמן סגירה) — מפתח גלובלי <code>data_avg_close_global</code> (ממוזג ל-system של כל כפתור), ובתבנית משתמש:{' '}
+        {'{data}'}, {'{data_json}'}, {'{user_question}'}. מפתחות כפתורים: avg_time_pipeline, avg_time_fastest_work, avg_time_fastest_client,
+        avg_time_lost_money, avg_time_close_faster, avg_time_free_chat.
       </p>
       {error && <p style={{ color: '#dc2626', marginBottom: '1rem' }}>{error}</p>}
       <div style={{ marginBottom: '1rem' }}>
@@ -268,7 +271,10 @@ export default function Prompts() {
                         />
                       </div>
                       <div>
-                        <Label>תבנית הודעת משתמש (placeholders: {'{title}'}, {'{examples}'}, {'{text}'}, {'{instruction}'} וכו')</Label>
+                        <Label>
+                          תבנית הודעת משתמש — הצעות: {'{title}'}, {'{examples}'}, {'{text}'}, {'{instruction}'}; עמוד נתונים:{' '}
+                          {'{data}'}, {'{user_question}'}
+                        </Label>
                         <TextArea
                           value={e.userPromptTemplate ?? ''}
                           onChange={(ev) => setEdit(p.id, 'userPromptTemplate', ev.target.value)}
