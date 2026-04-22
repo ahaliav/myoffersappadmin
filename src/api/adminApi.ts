@@ -175,6 +175,53 @@ export interface AdminAiUsageLogsResponse {
   total: number;
 }
 
+export interface AdminOfferEngagementDto {
+  offerId?: number;
+  OfferId?: number;
+  userId?: number;
+  UserId?: number;
+  userEmail?: string;
+  UserEmail?: string;
+  userFullName?: string;
+  UserFullName?: string;
+  customerFullName?: string | null;
+  CustomerFullName?: string | null;
+  customerEmail?: string | null;
+  CustomerEmail?: string | null;
+  title?: string;
+  Title?: string;
+  status?: string;
+  Status?: string;
+  createdAt?: string;
+  CreatedAt?: string;
+  externalLinkOpenCount?: number;
+  ExternalLinkOpenCount?: number;
+  lastExternalLinkViewAt?: string | null;
+  LastExternalLinkViewAt?: string | null;
+  isSigned?: boolean;
+  IsSigned?: boolean;
+  signedAt?: string | null;
+  SignedAt?: string | null;
+}
+
+export function normalizeOfferEngagement(row: AdminOfferEngagementDto) {
+  return {
+    offerId: row.offerId ?? row.OfferId ?? 0,
+    userId: row.userId ?? row.UserId ?? 0,
+    userEmail: row.userEmail ?? row.UserEmail ?? '',
+    userFullName: row.userFullName ?? row.UserFullName ?? '',
+    customerFullName: row.customerFullName ?? row.CustomerFullName ?? null,
+    customerEmail: row.customerEmail ?? row.CustomerEmail ?? null,
+    title: row.title ?? row.Title ?? '',
+    status: row.status ?? row.Status ?? '',
+    createdAt: row.createdAt ?? row.CreatedAt ?? '',
+    externalLinkOpenCount: row.externalLinkOpenCount ?? row.ExternalLinkOpenCount ?? 0,
+    lastExternalLinkViewAt: row.lastExternalLinkViewAt ?? row.LastExternalLinkViewAt ?? null,
+    isSigned: row.isSigned ?? row.IsSigned ?? false,
+    signedAt: row.signedAt ?? row.SignedAt ?? null,
+  };
+}
+
 export interface MyAiUsageStatusDto {
   periodYearMonth: string;
   requestsUsed: number;
@@ -233,4 +280,7 @@ export const adminApi = {
 
   updateUserAiQuota: (userId: number, data: AdminUpdateUserAiQuotaDto) =>
     axiosClient.put<MyAiUsageStatusDto>(`/api/admin/ai-usage/${userId}/quota`, data),
+
+  getOffersEngagement: () =>
+    axiosClient.get<AdminOfferEngagementDto[]>('/api/admin/offers/engagement'),
 };

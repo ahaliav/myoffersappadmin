@@ -11,6 +11,7 @@ import {
   CreditCard,
   Package,
   Activity,
+  Link2,
 } from 'lucide-react';
 
 const Page = styled.div`
@@ -136,6 +137,10 @@ export default function Layout() {
           <NavItem to="/users">
             <Users size={20} />
             משתמשים
+          </NavItem>
+          <NavItem to="/offers">
+            <Link2 size={20} />
+            הצעות (צפיות)
           </NavItem>
           <NavItem to="/prompts">
             <Sparkles size={20} />

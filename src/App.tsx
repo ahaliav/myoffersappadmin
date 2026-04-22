@@ -13,6 +13,7 @@ import Prompts from './pages/Prompts';
 import Subscriptions from './pages/Subscriptions';
 import Plans from './pages/Plans';
 import AiUsage from './pages/AiUsage';
+import OffersEngagement from './pages/OffersEngagement';
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
               <Route path="subscriptions" element={<Subscriptions />} />
               <Route path="plans" element={<Plans />} />
               <Route path="ai-usage" element={<AiUsage />} />
+              <Route path="offers" element={<OffersEngagement />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
