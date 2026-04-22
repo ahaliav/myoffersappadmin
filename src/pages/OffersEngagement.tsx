@@ -2,7 +2,105 @@ import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { adminApi, normalizeOfferEngagement, openAdminOfferPdfInNewTab } from '../api/adminApi';
 import type { AdminOfferEngagementDto } from '../api/adminApi';
-import { RefreshCw, Link2, FileText } from 'lucide-react';
+import { RefreshCw, Link2, FileText, ChevronRight, ChevronLeft, ArrowUp, ArrowDown } from 'lucide-react';
+
+const PAGE_SIZE = 100;
+
+type EngRow = ReturnType<typeof normalizeOfferEngagement>;
+
+type SortKey =
+  | 'offerId'
+  | 'title'
+  | 'user'
+  | 'customer'
+  | 'status'
+  | 'opens'
+  | 'lastView'
+  | 'isSigned'
+  | 'signedAt';
+
+function defaultSortDir(key: SortKey): 'asc' | 'desc' {
+  if (
+    key === 'offerId' ||
+    key === 'opens' ||
+    key === 'lastView' ||
+    key === 'isSigned' ||
+    key === 'signedAt'
+  ) {
+    return 'desc';
+  }
+  return 'asc';
+}
+
+function userSortString(r: EngRow) {
+  return `${r.userFullName} ${r.userEmail}`.trim();
+}
+
+function customerSortString(r: EngRow) {
+  return `${r.customerFullName ?? ''} ${r.customerEmail ?? ''}`.trim();
+}
+
+function timeMs(s: string | null | undefined): number | null {
+  if (s == null) return null;
+  const t = new Date(s).getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
+/** nulls/invalid always sort last (bottom of list) for both directions */
+function compareWithNullsLast(
+  a: string | null | undefined,
+  b: string | null | undefined,
+  dir: 'asc' | 'desc'
+): number {
+  const am = timeMs(a);
+  const bm = timeMs(b);
+  const aNa = am == null;
+  const bNa = bm == null;
+  if (aNa && bNa) return 0;
+  if (aNa) return 1;
+  if (bNa) return -1;
+  const c = (am as number) - (bm as number);
+  return dir === 'asc' ? c : -c;
+}
+
+function sortEngagementRows(rows: EngRow[], key: SortKey, dir: 'asc' | 'desc'): EngRow[] {
+  const copy = [...rows];
+  const m = (x: number) => (dir === 'asc' ? x : -x);
+  copy.sort((a, b) => {
+    let c = 0;
+    switch (key) {
+      case 'offerId':
+        c = a.offerId - b.offerId;
+        return m(c);
+      case 'title':
+        c = a.title.localeCompare(b.title, 'he');
+        return m(c);
+      case 'user':
+        c = userSortString(a).localeCompare(userSortString(b), 'he');
+        return m(c);
+      case 'customer':
+        c = customerSortString(a).localeCompare(customerSortString(b), 'he');
+        return m(c);
+      case 'status':
+        c = a.status.localeCompare(b.status, 'he', { sensitivity: 'base' });
+        return m(c);
+      case 'opens':
+        c = a.externalLinkOpenCount - b.externalLinkOpenCount;
+        return m(c);
+      case 'lastView':
+        return compareWithNullsLast(a.lastExternalLinkViewAt, b.lastExternalLinkViewAt, dir);
+      case 'isSigned': {
+        c = (a.isSigned ? 1 : 0) - (b.isSigned ? 1 : 0);
+        return m(c);
+      }
+      case 'signedAt':
+        return compareWithNullsLast(a.signedAt, b.signedAt, dir);
+      default:
+        return 0;
+    }
+  });
+  return copy;
+}
 
 const Title = styled.h1`
   margin: 0 0 1.5rem 0;
@@ -157,6 +255,49 @@ const PdfCell = styled.div`
   gap: 0.15rem;
 `;
 
+const Pagination = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  font-size: 0.875rem;
+  color: #64748b;
+`;
+
+const ThButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-direction: row;
+  gap: 0.25rem;
+  direction: rtl;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  color: #475569;
+  text-align: right;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    color: #0f172a;
+  }
+`;
+
+const SortIcon = styled.span`
+  display: inline-flex;
+  flex-shrink: 0;
+  opacity: 0.9;
+`;
+
 function formatDt(iso: string | null | undefined) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -173,6 +314,9 @@ export default function OffersEngagement() {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [pdfBusy, setPdfBusy] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('offerId');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(defaultSortDir('offerId'));
+  const [page, setPage] = useState(0);
 
   const rows = useMemo(() => raw.map(normalizeOfferEngagement), [raw]);
 
@@ -189,6 +333,42 @@ export default function OffersEngagement() {
         (r.customerFullName && r.customerFullName.toLowerCase().includes(t))
     );
   }, [rows, q]);
+
+  const sorted = useMemo(
+    () => sortEngagementRows(filtered, sortKey, sortDir),
+    [filtered, sortKey, sortDir]
+  );
+
+  const totalCount = sorted.length;
+  const totalPages = Math.max(1, Math.ceil(Math.max(0, totalCount) / PAGE_SIZE));
+  const lastPage = totalPages - 1;
+
+  useEffect(() => {
+    setPage(0);
+  }, [q]);
+
+  const safePage = Math.min(page, lastPage);
+
+  useEffect(() => {
+    if (page > lastPage) {
+      setPage(lastPage);
+    }
+  }, [page, lastPage]);
+
+  const paged = useMemo(
+    () => sorted.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE),
+    [sorted, safePage]
+  );
+
+  const onSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(defaultSortDir(key));
+    }
+    setPage(0);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -207,11 +387,11 @@ export default function OffersEngagement() {
     load();
   }, []);
 
-  const handlePdf = async (offerId: number, signed: boolean) => {
-    const key = `${offerId}-${signed ? 'signed' : 'unsigned'}`;
+  const handlePdf = async (offerId: number) => {
+    const key = String(offerId);
     setPdfBusy(key);
     try {
-      await openAdminOfferPdfInNewTab(offerId, signed);
+      await openAdminOfferPdfInNewTab(offerId, true);
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : 'שגיאה בטעינת PDF');
     } finally {
@@ -223,7 +403,7 @@ export default function OffersEngagement() {
     <div>
       <Title>הצעות — צפיות וחתימה</Title>
       <Subtitle>
-        פתיחות הקישור החיצוני נספרות בכל טעינת דף של הלקוח; סטטוס ההצעה מהמערכת; חתימה מוצגת כאשר נרשמה חתימה על הצעה דרך קישור השיתוף.
+        פתיחות הקישור החיצוני נספרות בכל טעינת דף של הלקוח; סטטוס ההצעה מהמערכת; חתימה מוצגת כאשר נרשמה חתימה על הצעה דרך קישור השיתוף. מוצגים עד {PAGE_SIZE} שורות בכל עמוד; אפשר למיין בלחיצה על כותרת עמודה.
       </Subtitle>
       <Toolbar>
         <Btn type="button" onClick={load} disabled={loading}>
@@ -246,23 +426,84 @@ export default function OffersEngagement() {
           <Table>
             <thead>
               <tr>
-                <Th>#</Th>
-                <Th>כותרת</Th>
-                <Th>בעלים</Th>
-                <Th>לקוח</Th>
-                <Th>סטטוס</Th>
-                <Th>
-                  <Link2 size={14} style={{ verticalAlign: 'middle', marginLeft: 4 }} />
-                  פתיחות קישור
+                <Th aria-sort={sortKey === 'offerId' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <ThButton type="button" onClick={() => onSort('offerId')}>
+                    #
+                    <SortIcon>
+                      {sortKey === 'offerId' && (sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+                    </SortIcon>
+                  </ThButton>
                 </Th>
-                <Th>צפייה אחרונה</Th>
-                <Th>נחתם?</Th>
-                <Th>מועד חתימה</Th>
+                <Th aria-sort={sortKey === 'title' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <ThButton type="button" onClick={() => onSort('title')}>
+                    כותרת
+                    <SortIcon>
+                      {sortKey === 'title' && (sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+                    </SortIcon>
+                  </ThButton>
+                </Th>
+                <Th aria-sort={sortKey === 'user' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <ThButton type="button" onClick={() => onSort('user')}>
+                    בעלים
+                    <SortIcon>
+                      {sortKey === 'user' && (sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+                    </SortIcon>
+                  </ThButton>
+                </Th>
+                <Th aria-sort={sortKey === 'customer' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <ThButton type="button" onClick={() => onSort('customer')}>
+                    לקוח
+                    <SortIcon>
+                      {sortKey === 'customer' && (sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+                    </SortIcon>
+                  </ThButton>
+                </Th>
+                <Th aria-sort={sortKey === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <ThButton type="button" onClick={() => onSort('status')}>
+                    סטטוס
+                    <SortIcon>
+                      {sortKey === 'status' && (sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+                    </SortIcon>
+                  </ThButton>
+                </Th>
+                <Th aria-sort={sortKey === 'opens' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <ThButton type="button" onClick={() => onSort('opens')}>
+                    <Link2 size={14} style={{ verticalAlign: 'middle', marginLeft: 4, flexShrink: 0 }} />
+                    פתיחות קישור
+                    <SortIcon>
+                      {sortKey === 'opens' && (sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+                    </SortIcon>
+                  </ThButton>
+                </Th>
+                <Th aria-sort={sortKey === 'lastView' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <ThButton type="button" onClick={() => onSort('lastView')}>
+                    צפייה אחרונה
+                    <SortIcon>
+                      {sortKey === 'lastView' && (sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+                    </SortIcon>
+                  </ThButton>
+                </Th>
+                <Th aria-sort={sortKey === 'isSigned' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <ThButton type="button" onClick={() => onSort('isSigned')}>
+                    נחתם?
+                    <SortIcon>
+                      {sortKey === 'isSigned' && (sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+                    </SortIcon>
+                  </ThButton>
+                </Th>
+                <Th aria-sort={sortKey === 'signedAt' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <ThButton type="button" onClick={() => onSort('signedAt')}>
+                    מועד חתימה
+                    <SortIcon>
+                      {sortKey === 'signedAt' && (sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+                    </SortIcon>
+                  </ThButton>
+                </Th>
                 <Th>PDF</Th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
+              {paged.map((r) => (
                 <tr key={r.offerId}>
                   <Td>
                     <Num>{r.offerId}</Num>
@@ -307,18 +548,10 @@ export default function OffersEngagement() {
                             ? 'פתיחת PDF כולל בלוק החתימה'
                             : 'אין מסמך PDF חתום במערכת עבור הצעה זו'
                         }
-                        onClick={() => handlePdf(r.offerId, true)}
+                        onClick={() => handlePdf(r.offerId)}
                       >
                         <FileText size={14} />
                         חתום
-                      </PdfBtn>
-                      <PdfBtn
-                        type="button"
-                        disabled={pdfBusy !== null}
-                        title="PDF אחרון ללא חתימה (אם נוצר במערכת)"
-                        onClick={() => handlePdf(r.offerId, false)}
-                      >
-                        טיוטה
                       </PdfBtn>
                     </PdfCell>
                   </Td>
@@ -326,6 +559,32 @@ export default function OffersEngagement() {
               ))}
             </tbody>
           </Table>
+          {totalCount > 0 && (
+            <Pagination>
+              <span>
+                {totalCount} {totalCount === 1 ? 'רשומה' : 'רשומות'}
+                {totalPages > 1 && ` • עמוד ${safePage + 1} מתוך ${totalPages}`}
+              </span>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <Btn
+                  type="button"
+                  disabled={safePage === 0 || loading}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                >
+                  <ChevronRight size={18} />
+                  הקודם
+                </Btn>
+                <Btn
+                  type="button"
+                  disabled={safePage >= lastPage || loading}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  הבא
+                  <ChevronLeft size={18} />
+                </Btn>
+              </div>
+            </Pagination>
+          )}
         </TableWrap>
       )}
       {!loading && raw.length > 0 && filtered.length === 0 && (
