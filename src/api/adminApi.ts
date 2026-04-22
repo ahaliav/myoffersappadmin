@@ -1,3 +1,4 @@
+import axios from 'axios';
 import axiosClient from './axiosClient';
 
 export interface ApplicationLogDto {
@@ -283,4 +284,41 @@ export const adminApi = {
 
   getOffersEngagement: () =>
     axiosClient.get<AdminOfferEngagementDto[]>('/api/admin/offers/engagement'),
+
+  getOfferPdf: (offerId: number, params: { signed: boolean }) =>
+    axiosClient.get<Blob>(`/api/admin/offers/${offerId}/pdf`, {
+      params: { signed: params.signed },
+      responseType: 'blob',
+    }),
 };
+
+/** Opens quote PDF in a new tab (auth via axios interceptor). */
+export async function openAdminOfferPdfInNewTab(offerId: number, signed: boolean): Promise<void> {
+  try {
+    const res = await adminApi.getOfferPdf(offerId, { signed });
+    const blob =
+      res.data instanceof Blob
+        ? res.data
+        : new Blob([res.data as BlobPart], { type: res.headers['content-type'] || 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      URL.revokeObjectURL(url);
+      throw new Error('לא ניתן לפתוח חלון חדש — בדוק חסימת חלונות קופצים');
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
+  } catch (e: unknown) {
+    if (axios.isAxiosError(e) && e.response?.status === 404 && e.response.data instanceof Blob) {
+      const text = await e.response.data.text();
+      let msg = 'לא נמצא PDF למסמך זה';
+      try {
+        const j = JSON.parse(text) as { message?: string };
+        if (typeof j.message === 'string' && j.message.trim()) msg = j.message;
+      } catch {
+        /* ignore invalid JSON */
+      }
+      throw new Error(msg);
+    }
+    throw e;
+  }
+}

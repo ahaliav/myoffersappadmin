@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { adminApi, normalizeOfferEngagement } from '../api/adminApi';
+import { adminApi, normalizeOfferEngagement, openAdminOfferPdfInNewTab } from '../api/adminApi';
 import type { AdminOfferEngagementDto } from '../api/adminApi';
-import { RefreshCw, Link2 } from 'lucide-react';
+import { RefreshCw, Link2, FileText } from 'lucide-react';
 
 const Title = styled.h1`
   margin: 0 0 1.5rem 0;
@@ -71,7 +71,7 @@ const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
   font-size: 0.875rem;
-  min-width: 960px;
+  min-width: 1080px;
 `;
 
 const Th = styled.th`
@@ -124,6 +124,39 @@ const Empty = styled.p`
   margin: 2rem 0 0 0;
 `;
 
+const PdfBtn = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  margin: 0.2rem 0 0.2rem 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+`;
+
+const PdfCell = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem;
+`;
+
 function formatDt(iso: string | null | undefined) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -139,6 +172,7 @@ export default function OffersEngagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null);
 
   const rows = useMemo(() => raw.map(normalizeOfferEngagement), [raw]);
 
@@ -172,6 +206,18 @@ export default function OffersEngagement() {
   useEffect(() => {
     load();
   }, []);
+
+  const handlePdf = async (offerId: number, signed: boolean) => {
+    const key = `${offerId}-${signed ? 'signed' : 'unsigned'}`;
+    setPdfBusy(key);
+    try {
+      await openAdminOfferPdfInNewTab(offerId, signed);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'שגיאה בטעינת PDF');
+    } finally {
+      setPdfBusy(null);
+    }
+  };
 
   return (
     <div>
@@ -212,6 +258,7 @@ export default function OffersEngagement() {
                 <Th>צפייה אחרונה</Th>
                 <Th>נחתם?</Th>
                 <Th>מועד חתימה</Th>
+                <Th>PDF</Th>
               </tr>
             </thead>
             <tbody>
@@ -250,6 +297,31 @@ export default function OffersEngagement() {
                   <Td>{formatDt(r.lastExternalLinkViewAt)}</Td>
                   <Td>{r.isSigned ? 'כן' : 'לא'}</Td>
                   <Td>{formatDt(r.signedAt)}</Td>
+                  <Td>
+                    <PdfCell>
+                      <PdfBtn
+                        type="button"
+                        disabled={pdfBusy !== null || !r.isSigned}
+                        title={
+                          r.isSigned
+                            ? 'פתיחת PDF כולל בלוק החתימה'
+                            : 'אין מסמך PDF חתום במערכת עבור הצעה זו'
+                        }
+                        onClick={() => handlePdf(r.offerId, true)}
+                      >
+                        <FileText size={14} />
+                        חתום
+                      </PdfBtn>
+                      <PdfBtn
+                        type="button"
+                        disabled={pdfBusy !== null}
+                        title="PDF אחרון ללא חתימה (אם נוצר במערכת)"
+                        onClick={() => handlePdf(r.offerId, false)}
+                      >
+                        טיוטה
+                      </PdfBtn>
+                    </PdfCell>
+                  </Td>
                 </tr>
               ))}
             </tbody>
