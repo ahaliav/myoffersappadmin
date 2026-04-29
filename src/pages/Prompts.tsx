@@ -231,6 +231,8 @@ export default function Prompts() {
         אחוזי סגירה: מפתח גלובלי <code>close_rate_global</code>; כפתורים: close_rate_how_am_i_doing, close_rate_best_work,
         close_rate_worst, close_rate_what_changed, close_rate_how_to_improve, close_rate_free_chat. אותם placeholders:{' '}
         {'{data}'}, {'{user_question}'}.
+        אזורים (Areas AI): מפתח גלובלי <code>areas_global</code>; כפתורים: areas_best_to_advertise, areas_not_worth_it,
+        areas_went_cold, areas_most_money, areas_why_not_closing, areas_free_chat. אותם placeholders: {'{data}'}, {'{user_question}'}.
       </p>
       {error && <p style={{ color: '#dc2626', marginBottom: '1rem' }}>{error}</p>}
       <div style={{ marginBottom: '1rem' }}>
