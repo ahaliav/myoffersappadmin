@@ -8,6 +8,7 @@ import {
   LogOut,
   Shield,
   Sparkles,
+  Bot,
   CreditCard,
   Package,
   Activity,
@@ -129,6 +130,10 @@ export default function Layout() {
           <NavItem to="/" end>
             <LayoutDashboard size={20} />
             לוח בקרה
+          </NavItem>
+          <NavItem to="/ai-console">
+            <Bot size={20} />
+            AI Admin Console
           </NavItem>
           <NavItem to="/logs">
             <FileText size={20} />

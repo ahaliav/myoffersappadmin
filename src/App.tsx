@@ -14,6 +14,8 @@ import Subscriptions from './pages/Subscriptions';
 import Plans from './pages/Plans';
 import AiUsage from './pages/AiUsage';
 import OffersEngagement from './pages/OffersEngagement';
+import AiConsole from './pages/AiConsole';
+import AiChat from './pages/AiChat';
 
 function App() {
   return (
@@ -39,6 +41,8 @@ function App() {
               <Route path="plans" element={<Plans />} />
               <Route path="ai-usage" element={<AiUsage />} />
               <Route path="offers" element={<OffersEngagement />} />
+              <Route path="ai-console" element={<AiConsole />} />
+              <Route path="ai-console/chat" element={<AiChat />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

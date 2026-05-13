@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { adminApi, type SubscriptionAdminDto } from '../api/adminApi';
+import { adminApi, type AdminUpdateSubscriptionDto, type SubscriptionAdminDto } from '../api/adminApi';
 import { RefreshCw } from 'lucide-react';
 
 const PageWrap = styled.div`
@@ -120,10 +120,22 @@ function formatDate(s: string | null | undefined): string {
   }
 }
 
+function toIsoDate(s: string | null | undefined): string {
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return '';
+  // yyyy-MM-dd for <input type="date">
+  return d.toISOString().slice(0, 10);
+}
+
 export default function Subscriptions() {
   const [list, setList] = useState<SubscriptionAdminDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editEndDate, setEditEndDate] = useState<string>('');
+  const [editStatus, setEditStatus] = useState<string>('active');
 
   const load = async () => {
     setLoading(true);
@@ -142,6 +154,51 @@ export default function Subscriptions() {
   useEffect(() => {
     load();
   }, []);
+
+  const applyUpdate = async (id: number, patch: AdminUpdateSubscriptionDto) => {
+    setBusyId(id);
+    setError(null);
+    try {
+      const res = await adminApi.updateSubscription(id, patch);
+      const updated = norm(res.data as unknown as Record<string, unknown>);
+      setList((prev) => prev.map((s) => (s.id === id ? updated : s)));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'שגיאה בעדכון המנוי');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const openEdit = (s: SubscriptionAdminDto) => {
+    setEditId(s.id);
+    setEditEndDate(toIsoDate(s.endDate));
+    setEditStatus(s.status || 'active');
+  };
+
+  const saveEdit = async () => {
+    if (editId == null) return;
+    const patch: AdminUpdateSubscriptionDto = { status: editStatus };
+    if (editEndDate) {
+      // Send end-of-day UTC so the new end is strictly in the future when picking today.
+      const d = new Date(editEndDate + 'T23:59:59Z');
+      patch.endDate = d.toISOString();
+    } else {
+      patch.endDate = null;
+    }
+    await applyUpdate(editId, patch);
+    setEditId(null);
+  };
+
+  const extendByDays = async (s: SubscriptionAdminDto, days: number) => {
+    const base = s.endDate && new Date(s.endDate).getTime() > Date.now()
+      ? new Date(s.endDate)
+      : new Date();
+    const next = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+    await applyUpdate(s.id, { endDate: next.toISOString(), status: 'active' });
+  };
+
+  const setStatus = (s: SubscriptionAdminDto, status: 'active' | 'expired' | 'cancelled') =>
+    applyUpdate(s.id, { status });
 
   if (loading && list.length === 0) {
     return (
@@ -180,6 +237,7 @@ export default function Subscriptions() {
                 <Th>ניסיון</Th>
                 <Th>סכום</Th>
                 <Th>חידוש אוטומטי</Th>
+                <Th>פעולות</Th>
               </tr>
             </thead>
             <tbody>
@@ -204,12 +262,115 @@ export default function Subscriptions() {
                   </Td>
                   <Td>{typeof s.amount === 'number' ? `₪${s.amount}` : '—'}</Td>
                   <Td>{s.autoRenew ? 'כן' : 'לא'}</Td>
+                  <Td>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                      <Btn
+                        $secondary
+                        disabled={busyId === s.id}
+                        onClick={() => extendByDays(s, 30)}
+                        title="הארך ב-30 יום והפעל"
+                      >
+                        +30 יום
+                      </Btn>
+                      <Btn
+                        $secondary
+                        disabled={busyId === s.id}
+                        onClick={() => extendByDays(s, 365)}
+                        title="הארך בשנה והפעל"
+                      >
+                        +שנה
+                      </Btn>
+                      <Btn $secondary disabled={busyId === s.id} onClick={() => openEdit(s)}>
+                        ערוך
+                      </Btn>
+                      {s.status !== 'active' && (
+                        <Btn disabled={busyId === s.id} onClick={() => setStatus(s, 'active')}>
+                          הפעל
+                        </Btn>
+                      )}
+                      {s.status !== 'expired' && (
+                        <Btn
+                          $secondary
+                          disabled={busyId === s.id}
+                          onClick={() => setStatus(s, 'expired')}
+                        >
+                          סמן כפג תוקף
+                        </Btn>
+                      )}
+                      {s.status !== 'cancelled' && (
+                        <Btn
+                          $secondary
+                          disabled={busyId === s.id}
+                          onClick={() => setStatus(s, 'cancelled')}
+                        >
+                          בטל
+                        </Btn>
+                      )}
+                    </div>
+                  </Td>
                 </Tr>
               ))}
             </tbody>
           </Table>
         </TableWrap>
       )}
+
+      {editId != null && (
+        <ModalBackdrop onClick={() => setEditId(null)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 1rem 0' }}>עריכת מנוי #{editId}</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <span style={{ fontWeight: 500 }}>סטטוס</span>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                  style={{ padding: '0.5rem', borderRadius: 8, border: '1px solid #cbd5e1' }}
+                >
+                  <option value="active">active</option>
+                  <option value="expired">expired</option>
+                  <option value="cancelled">cancelled</option>
+                  <option value="pending">pending</option>
+                </select>
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <span style={{ fontWeight: 500 }}>תאריך סיום</span>
+                <input
+                  type="date"
+                  value={editEndDate}
+                  onChange={(e) => setEditEndDate(e.target.value)}
+                  style={{ padding: '0.5rem', borderRadius: 8, border: '1px solid #cbd5e1' }}
+                />
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', justifyContent: 'flex-start' }}>
+              <Btn onClick={saveEdit} disabled={busyId === editId}>שמור</Btn>
+              <Btn $secondary onClick={() => setEditId(null)}>ביטול</Btn>
+            </div>
+          </ModalCard>
+        </ModalBackdrop>
+      )}
     </PageWrap>
   );
 }
+
+const ModalBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+`;
+
+const ModalCard = styled.div`
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.5rem;
+  min-width: 320px;
+  max-width: 90vw;
+  direction: rtl;
+  text-align: right;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+`;

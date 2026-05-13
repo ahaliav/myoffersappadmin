@@ -233,6 +233,10 @@ export default function Prompts() {
         {'{data}'}, {'{user_question}'}.
         אזורים (Areas AI): מפתח גלובלי <code>areas_global</code>; כפתורים: areas_best_to_advertise, areas_not_worth_it,
         areas_went_cold, areas_most_money, areas_why_not_closing, areas_free_chat. אותם placeholders: {'{data}'}, {'{user_question}'}.
+        דירוג עבודות (Ranking AI): מפתח גלובלי <code>ranking_global</code>; כפתורים: ranking_best_work, ranking_waste_of_time,
+        ranking_why_changed, ranking_earn_more, ranking_money_left, ranking_free_chat.
+        סטטוסים (Status AI): מפתח גלובלי <code>status_global</code>; כפתורים: status_money_waiting, status_call_back_now,
+        status_why_lost, status_save_expired, status_what_to_do_now, status_free_chat.
       </p>
       {error && <p style={{ color: '#dc2626', marginBottom: '1rem' }}>{error}</p>}
       <div style={{ marginBottom: '1rem' }}>
