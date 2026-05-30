@@ -13,6 +13,8 @@ import {
   Package,
   Activity,
   Link2,
+  Database,
+  Wrench,
 } from 'lucide-react';
 
 const Page = styled.div`
@@ -162,6 +164,14 @@ export default function Layout() {
           <NavItem to="/ai-usage">
             <Activity size={20} />
             מכסות AI
+          </NavItem>
+          <NavItem to="/data-variables">
+            <Database size={20} />
+            משתני נתונים
+          </NavItem>
+          <NavItem to="/ai-tools-registry">
+            <Wrench size={20} />
+            Tool Registry
           </NavItem>
         </Nav>
         <UserBlock>

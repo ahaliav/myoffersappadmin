@@ -292,6 +292,185 @@ export const adminApi = {
     }),
 };
 
+// ── AI Architecture: Data Variables ────────────────────────────────────────
+
+export interface DataVariableDto {
+  id: number;
+  key: string;
+  name: string;
+  description?: string;
+  sqlQuery: string;
+  resultFormat: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DataVariableCreateDto {
+  key: string;
+  name: string;
+  description?: string;
+  sqlQuery: string;
+  resultFormat: string;
+}
+
+export interface DataVariableUpdateDto {
+  name: string;
+  description?: string;
+  sqlQuery: string;
+  resultFormat: string;
+  isActive: boolean;
+}
+
+// ── AI Architecture: Prompt Versions ───────────────────────────────────────
+
+export interface PromptVersionDto {
+  id: number;
+  promptId: number;
+  versionNumber: number;
+  systemPrompt: string;
+  userPromptTemplate?: string;
+  model?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+// ── AI Architecture: Prompt Bindings ───────────────────────────────────────
+
+export interface PromptDataBindingDto {
+  id: number;
+  promptId: number;
+  variableId: number;
+  variableKey: string;
+  placeholderKey: string;
+  sortOrder: number;
+}
+
+export interface PromptDataBindingCreateDto {
+  promptId: number;
+  variableId: number;
+  placeholderKey: string;
+  sortOrder: number;
+}
+
+// ── AI Architecture: Tool Registry ─────────────────────────────────────────
+
+export interface AiToolDbDto {
+  id: number;
+  name: string;
+  displayName: string;
+  description: string;
+  jsonSchema: string;
+  handlerName: string;
+  scope: string;
+  requiresConfirmation: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function n<T>(v: T | undefined, fallback: T): T {
+  return v !== undefined ? v : fallback;
+}
+
+function normalizeDataVariable(d: Record<string, unknown>): DataVariableDto {
+  return {
+    id: n(d.id ?? d.Id, 0) as number,
+    key: n(d.key ?? d.Key, '') as string,
+    name: n(d.name ?? d.Name, '') as string,
+    description: (d.description ?? d.Description) as string | undefined,
+    sqlQuery: n(d.sqlQuery ?? d.SqlQuery, '') as string,
+    resultFormat: n(d.resultFormat ?? d.ResultFormat, 'json') as string,
+    isActive: n(d.isActive ?? d.IsActive, true) as boolean,
+    createdAt: n(d.createdAt ?? d.CreatedAt, '') as string,
+    updatedAt: n(d.updatedAt ?? d.UpdatedAt, '') as string,
+  };
+}
+
+function normalizePromptVersion(v: Record<string, unknown>): PromptVersionDto {
+  return {
+    id: n(v.id ?? v.Id, 0) as number,
+    promptId: n(v.promptId ?? v.PromptId, 0) as number,
+    versionNumber: n(v.versionNumber ?? v.VersionNumber, 0) as number,
+    systemPrompt: n(v.systemPrompt ?? v.SystemPrompt, '') as string,
+    userPromptTemplate: (v.userPromptTemplate ?? v.UserPromptTemplate) as string | undefined,
+    model: (v.model ?? v.Model) as string | undefined,
+    notes: (v.notes ?? v.Notes) as string | undefined,
+    createdAt: n(v.createdAt ?? v.CreatedAt, '') as string,
+  };
+}
+
+function normalizeBinding(b: Record<string, unknown>): PromptDataBindingDto {
+  return {
+    id: n(b.id ?? b.Id, 0) as number,
+    promptId: n(b.promptId ?? b.PromptId, 0) as number,
+    variableId: n(b.variableId ?? b.VariableId, 0) as number,
+    variableKey: n(b.variableKey ?? b.VariableKey, '') as string,
+    placeholderKey: n(b.placeholderKey ?? b.PlaceholderKey, '') as string,
+    sortOrder: n(b.sortOrder ?? b.SortOrder, 0) as number,
+  };
+}
+
+function normalizeAiTool(t: Record<string, unknown>): AiToolDbDto {
+  return {
+    id: n(t.id ?? t.Id, 0) as number,
+    name: n(t.name ?? t.Name, '') as string,
+    displayName: n(t.displayName ?? t.DisplayName, '') as string,
+    description: n(t.description ?? t.Description, '') as string,
+    jsonSchema: n(t.jsonSchema ?? t.JsonSchema, '') as string,
+    handlerName: n(t.handlerName ?? t.HandlerName, '') as string,
+    scope: n(t.scope ?? t.Scope, 'user') as string,
+    requiresConfirmation: n(t.requiresConfirmation ?? t.RequiresConfirmation, false) as boolean,
+    isActive: n(t.isActive ?? t.IsActive, true) as boolean,
+    createdAt: n(t.createdAt ?? t.CreatedAt, '') as string,
+    updatedAt: n(t.updatedAt ?? t.UpdatedAt, '') as string,
+  };
+}
+
+export const aiArchitectureApi = {
+  // Data Variables
+  getDataVariables: () =>
+    axiosClient.get<unknown[]>('/api/admin/data-variables').then((r) => ({
+      ...r, data: r.data.map((x) => normalizeDataVariable(x as Record<string, unknown>)),
+    })),
+  createDataVariable: (dto: DataVariableCreateDto) =>
+    axiosClient.post<unknown>('/api/admin/data-variables', dto).then((r) => ({
+      ...r, data: normalizeDataVariable(r.data as Record<string, unknown>),
+    })),
+  updateDataVariable: (id: number, dto: DataVariableUpdateDto) =>
+    axiosClient.put(`/api/admin/data-variables/${id}`, dto),
+  deleteDataVariable: (id: number) =>
+    axiosClient.delete(`/api/admin/data-variables/${id}`),
+
+  // Prompt Versions
+  getPromptVersions: (promptId: number) =>
+    axiosClient.get<unknown[]>(`/api/admin/prompt-versions/${promptId}`).then((r) => ({
+      ...r, data: r.data.map((x) => normalizePromptVersion(x as Record<string, unknown>)),
+    })),
+  snapshotPrompt: (promptId: number, notes?: string) =>
+    axiosClient.post(`/api/admin/prompt-versions/${promptId}/snapshot`, JSON.stringify(notes ?? null)),
+  rollbackPrompt: (promptId: number, versionNumber: number) =>
+    axiosClient.post(`/api/admin/prompt-versions/${promptId}/rollback/${versionNumber}`),
+
+  // Prompt Bindings
+  getPromptBindings: (promptId: number) =>
+    axiosClient.get<unknown[]>(`/api/admin/prompt-bindings/${promptId}`).then((r) => ({
+      ...r, data: r.data.map((x) => normalizeBinding(x as Record<string, unknown>)),
+    })),
+  createPromptBinding: (dto: PromptDataBindingCreateDto) =>
+    axiosClient.post('/api/admin/prompt-bindings', dto),
+  deletePromptBinding: (id: number) =>
+    axiosClient.delete(`/api/admin/prompt-bindings/${id}`),
+
+  // AI Tools Registry
+  getAiTools: () =>
+    axiosClient.get<unknown[]>('/api/admin/ai-tools-registry').then((r) => ({
+      ...r, data: r.data.map((x) => normalizeAiTool(x as Record<string, unknown>)),
+    })),
+  toggleAiTool: (id: number, isActive: boolean) =>
+    axiosClient.patch(`/api/admin/ai-tools-registry/${id}/toggle`, { isActive }),
+};
+
 /** Opens quote PDF in a new tab (auth via axios interceptor). */
 export async function openAdminOfferPdfInNewTab(offerId: number, signed: boolean): Promise<void> {
   try {

@@ -16,6 +16,8 @@ import AiUsage from './pages/AiUsage';
 import OffersEngagement from './pages/OffersEngagement';
 import AiConsole from './pages/AiConsole';
 import AiChat from './pages/AiChat';
+import DataVariables from './pages/DataVariables';
+import AiToolsRegistry from './pages/AiToolsRegistry';
 
 function App() {
   return (
@@ -43,6 +45,8 @@ function App() {
               <Route path="offers" element={<OffersEngagement />} />
               <Route path="ai-console" element={<AiConsole />} />
               <Route path="ai-console/chat" element={<AiChat />} />
+              <Route path="data-variables" element={<DataVariables />} />
+              <Route path="ai-tools-registry" element={<AiToolsRegistry />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
