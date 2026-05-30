@@ -520,5 +520,6 @@ export default function Prompts() {
           );
         })
       )}
-    );
+    </PageWrap>
+  );
 }
