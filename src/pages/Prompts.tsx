@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { adminApi, aiArchitectureApi, type AiPromptDto, type PromptVersionDto, type DataVariableDto, type PromptDataBindingDto } from '../api/adminApi';
-import { RefreshCw, Save, ChevronDown, ChevronUp, History, RotateCcw, Link, Plus, Trash2, Camera } from 'lucide-react';
+import { adminApi, aiArchitectureApi, type AiPromptDto, type PromptVersionDto, type DataVariableDto, type PromptDataBindingDto, type PromptTestResponse } from '../api/adminApi';
+import { RefreshCw, Save, ChevronDown, ChevronUp, History, RotateCcw, Link, Plus, Trash2, Camera, FlaskConical } from 'lucide-react';
 
 const PageWrap = styled.div`
   direction: rtl;
@@ -220,7 +220,7 @@ function norm(p: AiPromptDto | Record<string, unknown>): AiPromptDto {
   };
 }
 
-type CardTab = 'edit' | 'versions' | 'bindings';
+type CardTab = 'edit' | 'versions' | 'bindings' | 'test';
 
 export default function Prompts() {
   const [list, setList] = useState<AiPromptDto[]>([]);
@@ -241,6 +241,28 @@ export default function Prompts() {
   const [loadingBindings, setLoadingBindings] = useState<Record<number, boolean>>({});
   const [allVariables, setAllVariables] = useState<DataVariableDto[]>([]);
   const [newBinding, setNewBinding] = useState<Record<number, { variableId: number; placeholderKey: string }>>({});
+
+  // Test state
+  const [testInput, setTestInput] = useState<Record<number, string>>({});
+  const [testUserId, setTestUserId] = useState<Record<number, string>>({});
+  const [testResult, setTestResult] = useState<Record<number, PromptTestResponse | null>>({});
+  const [testing, setTesting] = useState<number | null>(null);
+
+  const runTest = async (promptId: number) => {
+    const action = testInput[promptId]?.trim();
+    if (!action) return;
+    setTesting(promptId);
+    setTestResult((p) => ({ ...p, [promptId]: null }));
+    try {
+      const r = await aiArchitectureApi.testPrompt(promptId, action, parseInt(testUserId[promptId] ?? '0', 10) || 0);
+      const res = r.data as PromptTestResponse;
+      setTestResult((p) => ({ ...p, [promptId]: res }));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'שגיאה בבדיקה');
+    } finally {
+      setTesting(null);
+    }
+  };
 
   const loadVersions = async (promptId: number) => {
     setLoadingVersions((p) => ({ ...p, [promptId]: true }));
@@ -424,6 +446,7 @@ export default function Prompts() {
                     <Tab $active={tab === 'edit'} onClick={() => switchTab(p.id, 'edit')}><Save size={13} />עריכה</Tab>
                     <Tab $active={tab === 'versions'} onClick={() => switchTab(p.id, 'versions')}><History size={13} />גרסאות</Tab>
                     <Tab $active={tab === 'bindings'} onClick={() => switchTab(p.id, 'bindings')}><Link size={13} />משתנים</Tab>
+                    <Tab $active={tab === 'test'} onClick={() => switchTab(p.id, 'test')}><FlaskConical size={13} />בדיקה</Tab>
                   </TabBar>
 
                   {tab === 'edit' && (
@@ -483,6 +506,53 @@ export default function Prompts() {
                             <SmallBtn onClick={() => rollback(p.id, v.versionNumber)}><RotateCcw size={12} />חזור לגרסה</SmallBtn>
                           </VersionRow>
                         ))}
+                    </div>
+                  )}
+
+                  {tab === 'test' && (
+                    <div>
+                      <p style={{ color: '#64748b', fontSize: '0.82rem', marginBottom: '1rem' }}>
+                        בדוק את הפרומפט עם Action Prompt שרירותי. אם תציין User ID – יוזרקו הנתונים האמיתיים של אותו משתמש.
+                      </p>
+                      <Label>Action Prompt (שכבה 3 – הבקשה עצמה)</Label>
+                      <TextArea
+                        value={testInput[p.id] ?? ''}
+                        onChange={(ev) => setTestInput((prev) => ({ ...prev, [p.id]: ev.target.value }))}
+                        rows={3}
+                        placeholder="לדוגמה: מה הביצועים שלי החודש?"
+                        style={{ direction: 'rtl', textAlign: 'right' }}
+                      />
+                      <div style={{ display: 'flex', flexDirection: 'row-reverse', gap: '0.5rem', alignItems: 'center', marginBottom: '1rem' }}>
+                        <SmallInput
+                          type="number"
+                          placeholder="User ID (אופציונלי)"
+                          value={testUserId[p.id] ?? ''}
+                          onChange={(ev) => setTestUserId((prev) => ({ ...prev, [p.id]: ev.target.value }))}
+                          style={{ width: 160, textAlign: 'left', direction: 'ltr' }}
+                        />
+                        <Btn onClick={() => runTest(p.id)} disabled={testing === p.id || !testInput[p.id]?.trim()}>
+                          <FlaskConical size={15} />
+                          {testing === p.id ? 'מריץ...' : 'הרץ בדיקה'}
+                        </Btn>
+                      </div>
+                      {testResult[p.id] && (
+                        <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+                          <div style={{ background: '#f8fafc', padding: '0.6rem 1rem', display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#64748b' }}>
+                            <span>תוצאה</span>
+                            <span>
+                              input: {testResult[p.id]!.inputTokens} | output: {testResult[p.id]!.outputTokens}
+                              {testResult[p.id]!.cachedTokens > 0 && (
+                                <span style={{ color: '#16a34a', marginRight: '0.5rem' }}>
+                                  ✓ cached: {testResult[p.id]!.cachedTokens}
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div style={{ padding: '1rem', whiteSpace: 'pre-wrap', fontSize: '0.875rem', lineHeight: 1.6, direction: 'rtl', textAlign: 'right' }}>
+                            {testResult[p.id]!.reply}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

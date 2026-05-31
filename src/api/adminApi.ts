@@ -427,6 +427,14 @@ function normalizeAiTool(t: Record<string, unknown>): AiToolDbDto {
   };
 }
 
+export interface PromptTestResponse {
+  reply: string;
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  promptKey: string;
+}
+
 export const aiArchitectureApi = {
   // Data Variables
   getDataVariables: () =>
@@ -461,6 +469,10 @@ export const aiArchitectureApi = {
     axiosClient.post('/api/admin/prompt-bindings', dto),
   deletePromptBinding: (id: number) =>
     axiosClient.delete(`/api/admin/prompt-bindings/${id}`),
+
+  // Prompt Test
+  testPrompt: (promptId: number, actionPrompt: string, userId = 0) =>
+    axiosClient.post<PromptTestResponse>(`/api/admin/ai-prompts/${promptId}/test`, { actionPrompt, userId }),
 
   // AI Tools Registry
   getAiTools: () =>
