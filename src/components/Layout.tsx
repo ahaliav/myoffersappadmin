@@ -16,6 +16,7 @@ import {
   Database,
   Wrench,
   SlidersHorizontal,
+  PenLine,
 } from 'lucide-react';
 
 const Page = styled.div`
@@ -177,6 +178,10 @@ export default function Layout() {
           <NavItem to="/ai-settings">
             <SlidersHorizontal size={20} />
             הגדרות AI
+          </NavItem>
+          <NavItem to="/ai-writing">
+            <PenLine size={20} />
+            כתיבה עם AI
           </NavItem>
         </Nav>
         <UserBlock>

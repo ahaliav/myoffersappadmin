@@ -19,6 +19,7 @@ import AiChat from './pages/AiChat';
 import DataVariables from './pages/DataVariables';
 import AiToolsRegistry from './pages/AiToolsRegistry';
 import AiSettings from './pages/AiSettings';
+import AiWritingPrompts from './pages/AiWritingPrompts';
 
 function App() {
   return (
@@ -49,6 +50,7 @@ function App() {
               <Route path="data-variables" element={<DataVariables />} />
               <Route path="ai-tools-registry" element={<AiToolsRegistry />} />
               <Route path="ai-settings" element={<AiSettings />} />
+              <Route path="ai-writing" element={<AiWritingPrompts />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
