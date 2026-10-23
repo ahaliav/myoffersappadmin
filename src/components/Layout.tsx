@@ -15,6 +15,7 @@ import {
   Link2,
   Database,
   Wrench,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 const Page = styled.div`
@@ -172,6 +173,10 @@ export default function Layout() {
           <NavItem to="/ai-tools-registry">
             <Wrench size={20} />
             Tool Registry
+          </NavItem>
+          <NavItem to="/ai-settings">
+            <SlidersHorizontal size={20} />
+            הגדרות AI
           </NavItem>
         </Nav>
         <UserBlock>
