@@ -37,6 +37,14 @@ export interface WritingFeature {
   blocks: WritingBlock[];
 }
 
+export interface WritingVersion {
+  versionNumber: number;
+  text: string;
+  notes: string | null;
+  publishedBy: string | null;
+  createdAt: string;
+}
+
 export interface WritingPreviewRequest {
   mode?: string;
   style?: string | null;
@@ -59,6 +67,9 @@ export const aiWritingAdminApi = {
   discardDraft: (blockId: number) => axiosClient.delete(`/api/admin/ai-writing/blocks/${blockId}/draft`),
   publish: (blockId: number) =>
     axiosClient.post<{ version: number; block: WritingBlock }>(`/api/admin/ai-writing/blocks/${blockId}/publish`),
+  versions: (blockId: number) => axiosClient.get<WritingVersion[]>(`/api/admin/ai-writing/blocks/${blockId}/versions`),
+  rollback: (blockId: number, version: number) =>
+    axiosClient.post<{ version: number; block: WritingBlock }>(`/api/admin/ai-writing/blocks/${blockId}/rollback/${version}`),
   setActive: (featureKey: string, isActive: boolean) =>
     axiosClient.put(`/api/admin/ai-writing/features/${encodeURIComponent(featureKey)}/active`, { isActive }),
   preview: (featureKey: string, body: WritingPreviewRequest) =>

@@ -8,6 +8,7 @@ import {
   type AdminUpdateUserAiQuotaDto,
 } from '../api/adminApi';
 import { RefreshCw, Pencil, ChevronDown, ChevronUp } from 'lucide-react';
+import AiUsageReportCard from '../components/AiUsageReportCard';
 
 const PageWrap = styled.div`
   direction: rtl;
@@ -210,6 +211,7 @@ export default function AiUsage() {
   return (
     <PageWrap>
       <Title>שימוש ומכסות AI</Title>
+      <AiUsageReportCard />
       <p style={{ color: '#64748b', marginBottom: '1rem' }}>
         סיכום חודשי (UTC) לפי מנוי פעיל, בונוס ועקיפות למשתמש.
       </p>

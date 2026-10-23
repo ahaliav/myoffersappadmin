@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { RefreshCw, Save, Upload, X, Eye, Lock, Power } from 'lucide-react';
-import { aiWritingAdminApi, type WritingBlock, type WritingFeature, type WritingPreview } from '../api/aiWritingAdminApi';
+import { RefreshCw, Save, Upload, X, Eye, Lock, Power, History } from 'lucide-react';
+import { aiWritingAdminApi, type WritingBlock, type WritingFeature, type WritingPreview, type WritingVersion } from '../api/aiWritingAdminApi';
 import { apiErrorMessage } from '../api/aiSettingsApi';
 
 // ---------------------------------------------------------------------------------------------
@@ -161,7 +161,18 @@ function BlockEditor({ block, onChanged }: { block: WritingBlock; onChanged: () 
   const [text, setText] = useState(block.draft ?? block.text);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [versions, setVersions] = useState<WritingVersion[] | null>(null);
   useEffect(() => { setText(block.draft ?? block.text); }, [block.draft, block.text]);
+
+  const toggleHistory = async () => {
+    if (versions) { setVersions(null); return; }
+    try {
+      const { data } = await aiWritingAdminApi.versions(block.id);
+      setVersions(data);
+    } catch (e) {
+      setProblem(apiErrorMessage(e, 'טעינת ההיסטוריה נכשלה'));
+    }
+  };
 
   const dirty = text !== (block.draft ?? block.text);
   const run = async (fn: () => Promise<unknown>) => {
@@ -178,7 +189,31 @@ function BlockEditor({ block, onChanged }: { block: WritingBlock; onChanged: () 
     }
   };
 
-  if (block.outputLocked) return <Locked dir="auto">{block.text}</Locked>;
+  const history = versions && (
+    <HistoryList>
+      {versions.map((v) => (
+        <li key={v.versionNumber}>
+          <span>גרסה {v.versionNumber} · {formatDate(v.createdAt)}{v.publishedBy ? ` · ${v.publishedBy}` : ''}{v.notes ? ` · ${v.notes}` : ''}</span>
+          <Locked dir="auto">{v.text}</Locked>
+          {!block.outputLocked && v.text !== block.text && (
+            <Btn $variant="secondary" disabled={busy}
+              onClick={() => { if (window.confirm(`להחזיר את גרסה ${v.versionNumber} למשתמשים?`)) void run(() => aiWritingAdminApi.rollback(block.id, v.versionNumber)).then(() => setVersions(null)); }}>
+              שחזר גרסה זו
+            </Btn>
+          )}
+        </li>
+      ))}
+      {versions.length === 0 && <li>אין עדיין גרסאות.</li>}
+    </HistoryList>
+  );
+
+  if (block.outputLocked) return (
+    <>
+      <Locked dir="auto">{block.text}</Locked>
+      {block.layer !== 'feature' && <Actions><Btn $variant="secondary" onClick={() => void toggleHistory()}><History size={14} /> היסטוריה</Btn></Actions>}
+      {history}
+    </>
+  );
   return (
     <>
       <TextArea dir="auto" value={text} onChange={(e) => setText(e.target.value)} rows={Math.min(14, Math.max(3, text.split('\n').length + 1))} />
@@ -197,7 +232,11 @@ function BlockEditor({ block, onChanged }: { block: WritingBlock; onChanged: () 
             <X size={14} /> בטל טיוטה
           </Btn>
         )}
+        <Btn $variant="secondary" onClick={() => void toggleHistory()}>
+          <History size={14} /> {versions ? 'הסתר היסטוריה' : 'היסטוריה'}
+        </Btn>
       </Actions>
+      {history}
     </>
   );
 }
@@ -427,6 +466,16 @@ const Locked = styled.pre`
   font: inherit;
   font-size: 0.85rem;
   color: #334155;
+`;
+
+const HistoryList = styled.ul`
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  li { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.8rem; color: #475569; }
 `;
 
 const DraftNote = styled.div`
