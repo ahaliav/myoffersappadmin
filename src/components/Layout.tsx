@@ -174,7 +174,7 @@ export default function Layout() {
           </NavItem>
           <NavItem to="/chat-trade-questions">
             <ListChecks size={20} />
-            שאלות לפי מקצוע
+            צ'אט הצעה (A1)
           </NavItem>
           <NavItem to="/ai-tools-registry">
             <Wrench size={20} />

@@ -21,6 +21,25 @@ export interface TradeQuestion {
 
 export type TradeQuestionInput = Omit<TradeQuestion, 'id' | 'updatedAt' | 'updatedBy'>;
 
+/** The chat's switches (backend: /api/admin/quote-chat/settings): qc_enabled is off | on | users:<id>,<id>; the rest on | off. */
+export interface QuoteChatSetting {
+  key: 'qc_enabled' | 'qc_photos' | 'qc_trade_questions' | 'qc_ai_descriptions';
+  value: string;
+  description: string | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export interface QuoteChatSettings {
+  settings: QuoteChatSetting[];
+  history: { key: string; value: string; changedAt: string; changedBy: string | null }[];
+}
+
+export const quoteChatSettingsApi = {
+  get: () => axiosClient.get<QuoteChatSettings>('/api/admin/quote-chat/settings'),
+  set: (key: string, value: string) => axiosClient.put(`/api/admin/quote-chat/settings/${key}`, { value }),
+};
+
 export const chatTradeQuestionsApi = {
   list: () => axiosClient.get<TradeQuestion[]>('/api/admin/chat-trade-questions'),
   create: (body: TradeQuestionInput) => axiosClient.post<TradeQuestion>('/api/admin/chat-trade-questions', body),

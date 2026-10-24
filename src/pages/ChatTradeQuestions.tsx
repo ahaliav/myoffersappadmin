@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Plus, Save, X } from 'lucide-react';
-import { chatTradeQuestionsApi, type TradeQuestion, type TradeQuestionInput } from '../api/chatTradeQuestionsApi';
+import {
+  chatTradeQuestionsApi, quoteChatSettingsApi, type QuoteChatSettings, type TradeQuestion, type TradeQuestionInput,
+} from '../api/chatTradeQuestionsApi';
 
 const PageWrap = styled.div`direction: rtl; text-align: right;`;
 const Title = styled.h1`margin: 0 0 0.5rem; font-size: 1.75rem; font-weight: 700; color: #0f172a;`;
@@ -25,6 +27,58 @@ const Input = styled.input`
 const Row = styled.div`display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center; margin-top: 0.75rem;`;
 const Muted = styled.span`color: #64748b; font-size: 0.8rem;`;
 const ErrorText = styled.p`color: #b91c1c; font-size: 0.875rem;`;
+
+const SWITCHES: Record<string, string> = {
+  qc_enabled: "הצ'אט פתוח (off / on / users:12,34 לפיילוט)",
+  qc_photos: 'תמונות לפריטים',
+  qc_trade_questions: 'שאלות לפי מקצוע',
+  qc_ai_descriptions: 'תיאורי פריטים שה-AI כותב (לא נשמרים לקטלוג)',
+};
+
+/** The chat's switches: each change applies at once and is kept in the history. */
+function Switches() {
+  const [data, setData] = useState<QuoteChatSettings | null>(null);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const load = async () => {
+    try {
+      const { data: d } = await quoteChatSettingsApi.get();
+      setData(d);
+      setValues(Object.fromEntries(d.settings.map((s) => [s.key, s.value])));
+    } catch (e) { setError(message(e)); }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const save = async (key: string) => {
+    setSaving(key);
+    setError(null);
+    try { await quoteChatSettingsApi.set(key, values[key]?.trim() ?? ''); await load(); }
+    catch (e) { setError(message(e)); }
+    finally { setSaving(null); }
+  };
+
+  if (!data) return error ? <ErrorText role="alert">{error}</ErrorText> : null;
+  return (
+    <Card aria-label="מתגי הצ'אט">
+      <strong>מתגים</strong>
+      {error && <ErrorText role="alert">{error}</ErrorText>}
+      <Grid>
+        {data.settings.map((s) => (
+          <Label key={s.key}>
+            {SWITCHES[s.key] ?? s.key}
+            <Input dir="ltr" value={values[s.key] ?? ''} onChange={(e) => setValues((p) => ({ ...p, [s.key]: e.target.value }))} aria-label={s.key} />
+            <Row style={{ marginTop: 0 }}>
+              {s.updatedBy && <Muted>{s.updatedBy}</Muted>}
+              <Btn type="button" disabled={saving === s.key || values[s.key] === s.value} onClick={() => void save(s.key)}>שמירה</Btn>
+            </Row>
+          </Label>
+        ))}
+      </Grid>
+    </Card>
+  );
+}
 
 const EMPTY: TradeQuestionInput = {
   trade: '*', itemKeyword: '', detailKey: '', questionHe: '{{item}}: ', optionsSource: 'fixed:|לא רלוונטי',
@@ -83,11 +137,12 @@ export default function ChatTradeQuestions() {
 
   return (
     <PageWrap>
-      <Title>שאלות לפי מקצוע (צ'אט הצעה)</Title>
+      <Title>צ'אט הצעה (A1): מתגים ושאלות לפי מקצוע</Title>
       <Desc>
         הצ'אט שואל את השאלות האלה מילה במילה על פריט ששמו כולל את מילת המפתח (למשל "צביעת דירה" ← "כמה חדרים?"),
         והתשובה נכנסת להערה של הפריט. נשאלות רק שאלות חובה ופעילות, ורק כשההגדרה qc_trade_questions דולקת.
       </Desc>
+      <Switches />
       {error && <ErrorText role="alert">{error}</ErrorText>}
 
       {draft ? (
