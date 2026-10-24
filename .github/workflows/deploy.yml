@@ -15,6 +15,8 @@ env:
   # the repository variable ADMIN_SITE_DIR if that changes; the deploy refuses to run if the directory doesn't exist.
   SITE_DIR: ${{ vars.ADMIN_SITE_DIR || '/home/ahaliav/myoffersappadmin' }}
   STAGE_DIR: /home/ahaliav/deploy-staging/myoffersappadmin
+  # The public address of the admin site, checked after the swap.
+  ADMIN_URL: ${{ vars.ADMIN_URL || 'https://admin.ahaliav.me' }}
 
 jobs:
   deploy:
@@ -117,3 +119,20 @@ jobs:
 
             echo "Deployed:"
             ls -la "$SITE/dist"
+
+      # The deploy counts only when the public site serves this build's bundle (nginx, the folder and the swap all
+      # worked). Fails the run otherwise.
+      - name: Check the live site serves this build
+        run: |
+          set -euo pipefail
+          asset=$(grep -o 'assets/index-[^"]*\.js' dist/index.html | head -1)
+          test -n "$asset"
+          for attempt in $(seq 1 12); do
+            if curl -fsS --max-time 10 "$ADMIN_URL/" | grep -qF "$asset"; then
+              echo "Live: $ADMIN_URL serves $asset"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::$ADMIN_URL does not serve the new build ($asset)"
+          exit 1
