@@ -1,0 +1,119 @@
+name: Deploy admin to Contabo
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+# Never let two deploys race each other into the same directory.
+concurrency:
+  group: deploy-admin-main
+  cancel-in-progress: false
+
+env:
+  # nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers. Override with the repository variable
+  # ADMIN_SITE_DIR if the admin site lives elsewhere; the deploy refuses to run if the directory doesn't exist.
+  SITE_DIR: ${{ vars.ADMIN_SITE_DIR || '/home/ahaliav/web_myoffersadmin' }}
+  STAGE_DIR: /home/ahaliav/deploy-staging/web_myoffersadmin
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # A failing test stops the deploy before anything reaches the server.
+      - name: Test
+        run: npm test
+
+      # Vite inlines env vars at build time, so .env has to exist before `npm run build`.
+      # VITE_API_BASE_URL is optional - the code falls back to https://ahaliav.me/api/ when it is unset.
+      - name: Write .env for the build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          for name in VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required repository secret $name"
+              exit 1
+            fi
+          done
+          : > .env
+          for name in VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY VITE_API_BASE_URL; do
+            if [ -n "${!name:-}" ]; then
+              printf '%s=%s\n' "$name" "${!name}" >> .env
+            fi
+          done
+          echo "Wrote .env with: $(cut -d= -f1 .env | tr '\n' ' ')"
+
+      - name: Build
+        run: npm run build
+
+      - name: Package build output
+        run: tar -czf dist.tar.gz -C dist .
+
+      - name: Prepare staging directory on VPS
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_PRIVATE_KEY }}
+          script: |
+            set -e
+            if [ ! -d "${{ env.SITE_DIR }}" ]; then
+              echo "Site directory ${{ env.SITE_DIR }} does not exist on the VPS; set the ADMIN_SITE_DIR repository variable."
+              exit 1
+            fi
+            rm -rf "${{ env.STAGE_DIR }}"
+            mkdir -p "${{ env.STAGE_DIR }}"
+
+      - name: Upload bundle to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_PRIVATE_KEY }}
+          source: dist.tar.gz
+          target: ${{ env.STAGE_DIR }}
+
+      - name: Publish new build
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_PRIVATE_KEY }}
+          script: |
+            set -e
+            SITE="${{ env.SITE_DIR }}"
+            STAGE="${{ env.STAGE_DIR }}"
+
+            rm -rf "$STAGE/dist-new"
+            mkdir -p "$STAGE/dist-new"
+            tar -xzf "$STAGE/dist.tar.gz" -C "$STAGE/dist-new"
+
+            # Refuse to swap in a bundle that is obviously broken/incomplete.
+            test -f "$STAGE/dist-new/index.html"
+            chmod -R a+rX "$STAGE/dist-new"
+
+            # Atomic swap: nginx never sees a half-written directory.
+            rm -rf "$SITE/dist-old"
+            if [ -d "$SITE/dist" ]; then mv "$SITE/dist" "$SITE/dist-old"; fi
+            mv "$STAGE/dist-new" "$SITE/dist"
+            rm -rf "$SITE/dist-old" "$STAGE/dist.tar.gz"
+
+            echo "Deployed:"
+            ls -la "$SITE/dist"
