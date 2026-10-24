@@ -1,119 +1,119 @@
 name: Deploy admin to Contabo
 
 on:
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.push:
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.  branches: [ "main" ]
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
 
 # Never let two deploys race each other into the same directory.
 concurrency:
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.group: deploy-admin-main
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.cancel-in-progress: false
+  group: deploy-admin-main
+  cancel-in-progress: false
 
 env:
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.# nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers. Override with the repository variable
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.# ADMIN_SITE_DIR if the admin site lives elsewhere; the deploy refuses to run if the directory doesn't exist.
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.SITE_DIR: ${{ vars.ADMIN_SITE_DIR || '/home/ahaliav/myoffersappadmin' }}
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.STAGE_DIR: /home/ahaliav/deploy-staging/myoffersappadmin
+  # nginx serves admin.ahaliav.me from $SITE_DIR/dist (/home/ahaliav/myoffersappadmin/dist on the VPS). Override with
+  # the repository variable ADMIN_SITE_DIR if that changes; the deploy refuses to run if the directory doesn't exist.
+  SITE_DIR: ${{ vars.ADMIN_SITE_DIR || '/home/ahaliav/myoffersappadmin' }}
+  STAGE_DIR: /home/ahaliav/deploy-staging/myoffersappadmin
 
 jobs:
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.deploy:
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.  runs-on: ubuntu-latest
+  deploy:
+    runs-on: ubuntu-latest
 
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.  steps:
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.    - name: Checkout source
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      uses: actions/checkout@v4
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
 
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.    - name: Setup Node
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      uses: actions/setup-node@v4
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      with:
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        node-version: '22'
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        cache: npm
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
 
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.    - name: Install dependencies
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.    # A failing test stops the deploy before anything reaches the server.
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.    - name: Test
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      run: npm test
+      # A failing test stops the deploy before anything reaches the server.
+      - name: Test
+        run: npm test
 
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.    # Vite inlines env vars at build time, so .env has to exist before `npm run build`.
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.    # VITE_API_BASE_URL is optional - the code falls back to https://ahaliav.me/api/ when it is unset.
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.    - name: Write .env for the build
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      env:
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      run: |
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        set -euo pipefail
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        for name in VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY; do
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          if [ -z "${!name:-}" ]; then
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.            echo "::error::Missing required repository secret $name"
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.            exit 1
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          fi
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        done
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        : > .env
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        for name in VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY VITE_API_BASE_URL; do
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          if [ -n "${!name:-}" ]; then
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.            printf '%s=%s\n' "$name" "${!name}" >> .env
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          fi
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        done
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        echo "Wrote .env with: $(cut -d= -f1 .env | tr '\n' ' ')"
+      # Vite inlines env vars at build time, so .env has to exist before `npm run build`.
+      # VITE_API_BASE_URL is optional - the code falls back to https://ahaliav.me/api/ when it is unset.
+      - name: Write .env for the build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          for name in VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required repository secret $name"
+              exit 1
+            fi
+          done
+          : > .env
+          for name in VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY VITE_API_BASE_URL; do
+            if [ -n "${!name:-}" ]; then
+              printf '%s=%s\n' "$name" "${!name}" >> .env
+            fi
+          done
+          echo "Wrote .env with: $(cut -d= -f1 .env | tr '\n' ' ')"
 
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.    - name: Build
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      run: npm run build
+      - name: Build
+        run: npm run build
 
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.    - name: Package build output
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      run: tar -czf dist.tar.gz -C dist .
+      - name: Package build output
+        run: tar -czf dist.tar.gz -C dist .
 
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.    - name: Prepare staging directory on VPS
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      uses: appleboy/ssh-action@v0.1.10
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      with:
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        host: ${{ secrets.VPS_HOST }}
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        username: ${{ secrets.VPS_USER }}
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        key: ${{ secrets.VPS_PRIVATE_KEY }}
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        script: |
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          set -e
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          if [ ! -d "${{ env.SITE_DIR }}" ]; then
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.            echo "Site directory ${{ env.SITE_DIR }} does not exist on the VPS; set the ADMIN_SITE_DIR repository variable."
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.            exit 1
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          fi
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          rm -rf "${{ env.STAGE_DIR }}"
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          mkdir -p "${{ env.STAGE_DIR }}"
+      - name: Prepare staging directory on VPS
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_PRIVATE_KEY }}
+          script: |
+            set -e
+            if [ ! -d "${{ env.SITE_DIR }}" ]; then
+              echo "Site directory ${{ env.SITE_DIR }} does not exist on the VPS; set the ADMIN_SITE_DIR repository variable."
+              exit 1
+            fi
+            rm -rf "${{ env.STAGE_DIR }}"
+            mkdir -p "${{ env.STAGE_DIR }}"
 
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.    - name: Upload bundle to VPS
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      uses: appleboy/scp-action@v0.1.7
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      with:
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        host: ${{ secrets.VPS_HOST }}
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        username: ${{ secrets.VPS_USER }}
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        key: ${{ secrets.VPS_PRIVATE_KEY }}
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        source: dist.tar.gz
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        target: ${{ env.STAGE_DIR }}
+      - name: Upload bundle to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_PRIVATE_KEY }}
+          source: dist.tar.gz
+          target: ${{ env.STAGE_DIR }}
 
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.    - name: Publish new build
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      uses: appleboy/ssh-action@v0.1.10
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.      with:
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        host: ${{ secrets.VPS_HOST }}
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        username: ${{ secrets.VPS_USER }}
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        key: ${{ secrets.VPS_PRIVATE_KEY }}
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.        script: |
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          set -e
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          SITE="${{ env.SITE_DIR }}"
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          STAGE="${{ env.STAGE_DIR }}"
+      - name: Publish new build
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_PRIVATE_KEY }}
+          script: |
+            set -e
+            SITE="${{ env.SITE_DIR }}"
+            STAGE="${{ env.STAGE_DIR }}"
 
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          rm -rf "$STAGE/dist-new"
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          mkdir -p "$STAGE/dist-new"
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          tar -xzf "$STAGE/dist.tar.gz" -C "$STAGE/dist-new"
+            rm -rf "$STAGE/dist-new"
+            mkdir -p "$STAGE/dist-new"
+            tar -xzf "$STAGE/dist.tar.gz" -C "$STAGE/dist-new"
 
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          # Refuse to swap in a bundle that is obviously broken/incomplete.
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          test -f "$STAGE/dist-new/index.html"
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          chmod -R a+rX "$STAGE/dist-new"
+            # Refuse to swap in a bundle that is obviously broken/incomplete.
+            test -f "$STAGE/dist-new/index.html"
+            chmod -R a+rX "$STAGE/dist-new"
 
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          # Atomic swap: nginx never sees a half-written directory.
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          rm -rf "$SITE/dist-old"
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          if [ -d "$SITE/dist" ]; then mv "$SITE/dist" "$SITE/dist-old"; fi
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          mv "$STAGE/dist-new" "$SITE/dist"
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          rm -rf "$SITE/dist-old" "$STAGE/dist.tar.gz"
+            # Atomic swap: nginx never sees a half-written directory.
+            rm -rf "$SITE/dist-old"
+            if [ -d "$SITE/dist" ]; then mv "$SITE/dist" "$SITE/dist-old"; fi
+            mv "$STAGE/dist-new" "$SITE/dist"
+            rm -rf "$SITE/dist-old" "$STAGE/dist.tar.gz"
 
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          echo "Deployed:"
- nginx serves the built assets from $SITE_DIR/dist, as for web_myoffers.          ls -la "$SITE/dist"
+            echo "Deployed:"
+            ls -la "$SITE/dist"
