@@ -17,6 +17,7 @@ import OffersEngagement from './pages/OffersEngagement';
 import AiConsole from './pages/AiConsole';
 import AiChat from './pages/AiChat';
 import DataVariables from './pages/DataVariables';
+import ChatTradeQuestions from './pages/ChatTradeQuestions';
 import AiToolsRegistry from './pages/AiToolsRegistry';
 import AiSettings from './pages/AiSettings';
 import AiWritingPrompts from './pages/AiWritingPrompts';
@@ -48,6 +49,7 @@ function App() {
               <Route path="ai-console" element={<AiConsole />} />
               <Route path="ai-console/chat" element={<AiChat />} />
               <Route path="data-variables" element={<DataVariables />} />
+              <Route path="chat-trade-questions" element={<ChatTradeQuestions />} />
               <Route path="ai-tools-registry" element={<AiToolsRegistry />} />
               <Route path="ai-settings" element={<AiSettings />} />
               <Route path="ai-writing" element={<AiWritingPrompts />} />

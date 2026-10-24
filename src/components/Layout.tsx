@@ -17,6 +17,7 @@ import {
   Wrench,
   SlidersHorizontal,
   PenLine,
+  ListChecks,
 } from 'lucide-react';
 
 const Page = styled.div`
@@ -170,6 +171,10 @@ export default function Layout() {
           <NavItem to="/data-variables">
             <Database size={20} />
             משתני נתונים
+          </NavItem>
+          <NavItem to="/chat-trade-questions">
+            <ListChecks size={20} />
+            שאלות לפי מקצוע
           </NavItem>
           <NavItem to="/ai-tools-registry">
             <Wrench size={20} />
