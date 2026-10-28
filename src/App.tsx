@@ -22,6 +22,7 @@ import AiToolsRegistry from './pages/AiToolsRegistry';
 import AiSettings from './pages/AiSettings';
 import AiWritingPrompts from './pages/AiWritingPrompts';
 import AgentSettings from './pages/AgentSettings';
+import DataSettings from './pages/DataSettings';
 
 function App() {
   return (
@@ -55,6 +56,7 @@ function App() {
               <Route path="ai-settings" element={<AiSettings />} />
               <Route path="ai-writing" element={<AiWritingPrompts />} />
               <Route path="agent-settings" element={<AgentSettings />} />
+              <Route path="data-settings" element={<DataSettings />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

@@ -184,6 +184,10 @@ export default function Layout() {
             <SlidersHorizontal size={20} />
             הגדרות הסוכן
           </NavItem>
+          <NavItem to="/data-settings">
+            <SlidersHorizontal size={20} />
+            הגדרות עמוד הנתונים
+          </NavItem>
           <NavItem to="/ai-settings">
             <SlidersHorizontal size={20} />
             הגדרות AI
