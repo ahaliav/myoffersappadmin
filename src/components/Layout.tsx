@@ -180,6 +180,10 @@ export default function Layout() {
             <Wrench size={20} />
             Tool Registry
           </NavItem>
+          <NavItem to="/agent-settings">
+            <SlidersHorizontal size={20} />
+            הגדרות הסוכן
+          </NavItem>
           <NavItem to="/ai-settings">
             <SlidersHorizontal size={20} />
             הגדרות AI
