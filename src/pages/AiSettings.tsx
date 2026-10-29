@@ -350,8 +350,8 @@ export default function AiSettings() {
     if (!overview || !draft) return [] as string[];
     const out: string[] = [];
     for (const op of overview.operations) {
-      const ov = draft.overrides[op.key];
-      if (!op.inUse && ov?.modelId == null) continue;
+      // An operation no feature uses yet (image generation) never blocks saving; its row still shows the problem.
+      if (!op.inUse) continue;
       const { modelId, fallbackModelId } = effective(op, draft);
       const m = models.get(modelId);
       const problem = modelProblem(m, m ? providers.get(m.providerKey) : undefined, op.requiredCapabilities);

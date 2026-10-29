@@ -129,6 +129,20 @@ describe('AiSettings', () => {
     expect(screen.getAllByText(/חסר: תמלול/).length).toBeGreaterThan(0);
   });
 
+  it('an image model chosen ahead of time does not block saving while no feature makes images', async () => {
+    const o = overview();
+    o.models.push(model(9, 'openai', 'gpt-image-2.5-flare', 'GPT Image 2.5 Flare', ['image_generation', 'image_input']));
+    o.operations.push({ key: 'image_generation', displayName: 'Image generation', displayNameHe: 'יצירת תמונות', requiredCapabilities: ['image_generation'], inUse: false, usedBy: '', modelId: 1, fallbackModelId: null, isOverride: false, problem: null });
+    api.get.mockImplementation(() => ok(o));
+    render(<AiSettings />);
+
+    fireEvent.change(await screen.findByLabelText('מודל עבור יצירת תמונות'), { target: { value: '9' } });
+
+    // OpenAI's client here doesn't list image_generation: the row says so, the draft can still be saved.
+    expect((await screen.findAllByText(/חסר: /)).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/הטיוטה לא תעבור את בדיקת השרת/)).toBeNull();
+  });
+
   it('asks for confirmation, then activates with the edited version and shows the new version', async () => {
     api.activate.mockImplementation(() => ok(overview(2, 4)));
     render(<AiSettings />);
