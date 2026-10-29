@@ -19,10 +19,14 @@ export interface DataSettings {
   history: DataHistory[];
 }
 
+/** The monthly check of "תהיה לי עבודה לחודש הבא?": per month, how many forecasts landed in their range. */
+export interface ForecastAccuracyMonth { month: string; forecasts: number; withRange: number; inRange: number; averageMiss: number }
+
 export type QuestionEdit = Pick<DataQuestionRow, 'title' | 'subtitle' | 'instruction' | 'exampleGood' | 'exampleBad' | 'isActive'>;
 
 export const dataSettingsApi = {
   get: () => axiosClient.get<DataSettings>('/api/admin/data-settings').then((r) => r.data),
+  forecastAccuracy: () => axiosClient.get<ForecastAccuracyMonth[]>('/api/admin/data-settings/forecast-accuracy').then((r) => r.data),
   setSetting: (key: string, value: string) => axiosClient.put(`/api/admin/data-settings/settings/${encodeURIComponent(key)}`, { value }),
   setQuestion: (key: string, q: QuestionEdit) => axiosClient.put(`/api/admin/data-settings/questions/${encodeURIComponent(key)}`, q),
   setRule: (key: string, template: string, priority: number, isActive: boolean) =>

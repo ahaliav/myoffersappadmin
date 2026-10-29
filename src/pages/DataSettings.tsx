@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { RotateCcw, Save } from 'lucide-react';
-import { dataSettingsApi, type DataQuestionRow, type DataSettings as Data, type QuestionEdit } from '../api/dataSettingsApi';
+import { dataSettingsApi, type DataQuestionRow, type DataSettings as Data, type ForecastAccuracyMonth, type QuestionEdit } from '../api/dataSettingsApi';
 
 const PageWrap = styled.div`direction: rtl; text-align: right;`;
 const Title = styled.h1`margin: 0 0 0.5rem; font-size: 1.75rem; font-weight: 700; color: #0f172a;`;
@@ -26,7 +26,7 @@ const Ghost = styled(Btn)`background: #fff; color: #334155; border: 1px solid #e
 const ErrorText = styled.p`color: #b91c1c; font-size: 0.875rem;`;
 const Section = styled.h3`margin: 1rem 0 0.5rem; font-size: 1rem;`;
 
-type TabKey = 'numbers' | 'questions' | 'rules' | 'history';
+type TabKey = 'numbers' | 'questions' | 'rules' | 'history' | 'accuracy';
 
 const SECTIONS: Record<string, string> = {
   revenue: 'הכנסות', ranking: 'דירוג עבודות', close_rate: 'אחוז סגירה', statuses: 'הצעות לפי סטטוסים', areas: 'הצעות לפי אזורים', close_time: 'זמן ממוצע לסגירה',
@@ -43,6 +43,11 @@ export default function DataSettings() {
   const [questionDrafts, setQuestionDrafts] = useState<Record<string, QuestionEdit>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [accuracy, setAccuracy] = useState<ForecastAccuracyMonth[] | null>(null);
+  useEffect(() => {
+    if (tab !== 'accuracy' || accuracy) return;
+    dataSettingsApi.forecastAccuracy().then(setAccuracy).catch(() => setAccuracy([]));
+  }, [tab, accuracy]);
 
   const load = () => dataSettingsApi.get().then(setData).catch(() => setError('לא הצלחתי לטעון'));
   useEffect(() => { void load(); }, []);
@@ -82,6 +87,7 @@ export default function DataSettings() {
         <Tab $on={tab === 'questions'} onClick={() => setTab('questions')}>שאלות ({data.questions.length})</Tab>
         <Tab $on={tab === 'rules'} onClick={() => setTab('rules')}>תובנות ({data.rules.length})</Tab>
         <Tab $on={tab === 'history'} onClick={() => setTab('history')}>היסטוריה</Tab>
+        <Tab $on={tab === 'accuracy'} onClick={() => setTab('accuracy')}>דיוק צפי</Tab>
       </Tabs>
       {error && <ErrorText role="alert">{error}</ErrorText>}
 
@@ -164,6 +170,22 @@ export default function DataSettings() {
           })}
         </div>
       ))}
+
+      {tab === 'accuracy' && (
+        <>
+          <Desc>פעם בחודש: הצפי הראשון של כל עסק ל"תהיה לי עבודה לחודש הבא?" מול העבודה שבאמת התחילה באותו חודש (לפני מע"מ).</Desc>
+          {accuracy?.length === 0 && <Muted>עוד אין חודש שנבדק.</Muted>}
+          {accuracy?.map((m) => (
+            <Card key={m.month}>
+              <Row>
+                <Key>{m.month.slice(0, 7)}</Key>
+                <span>{m.forecasts} צפיים · {m.withRange} עם טווח · {m.inRange} בתוך הטווח</span>
+                <Muted>החטאה ממוצעת: {Math.round(m.averageMiss).toLocaleString('he-IL')} ₪</Muted>
+              </Row>
+            </Card>
+          ))}
+        </>
+      )}
 
       {tab === 'history' && data.history.map((h) => (
         <Card key={h.key + h.changedAt}>
