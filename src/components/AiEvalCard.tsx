@@ -69,6 +69,72 @@ export default function AiEvalCard() {
   );
 }
 
+interface RouterResult { id: string; text: string; passed: boolean; failures: string[]; got: string; latencyMs: number }
+interface RouterReport { ranAt: string; total: number; passed: number; percent: number; results: RouterResult[] }
+
+/**
+ * Today smart's router test set (backend: /api/admin/ai-eval/router-*): each sentence through the real router and code's
+ * checks, against the intent and key it must get. Target ≥ 95%. Real model calls — use on staging, with Today smart on.
+ */
+export function RouterEvalCard() {
+  const [count, setCount] = useState(0);
+  const [report, setReport] = useState<RouterReport | null>(null);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    axiosClient.get<unknown[]>('/api/admin/ai-eval/router-cases').then((r) => setCount(r.data.length)).catch(() => setCount(0));
+  }, []);
+
+  const run = async () => {
+    if (!window.confirm(`להריץ ${count} משפטים מול הנתב האמיתי? כל הרצה עולה כסף.`)) return;
+    setRunning(true);
+    setError(null);
+    try {
+      const { data } = await axiosClient.post<RouterReport>('/api/admin/ai-eval/router-run', {});
+      setReport(data);
+    } catch (e) {
+      setError(apiErrorMessage(e, 'ההרצה נכשלה (Today smart צריך להיות פעיל)'));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const failed = report?.results.filter((r) => !r.passed) ?? [];
+  return (
+    <Card aria-label="נתב Today smart">
+      <Head>
+        <h2>נתב Today smart ({count} משפטים)</h2>
+        <RunBtn type="button" onClick={() => void run()} disabled={running || count === 0}>
+          <Play size={14} /> {running ? 'מריץ…' : 'הרץ'}
+        </RunBtn>
+      </Head>
+      <Muted>כל משפט עובר בנתב ובבדיקות של הקוד, ונבדק מול הכוונה והמפתח שהוא צריך לקבל. היעד: 95% ומעלה.</Muted>
+      {error && <ErrorText role="alert">{error}</ErrorText>}
+      {report && (
+        <>
+          <Summary $ok={report.percent >= 95}>עברו {report.passed} מתוך {report.total} ({report.percent}%)</Summary>
+          {failed.length > 0 && (
+            <Table>
+              <thead><tr><th>מקרה</th><th>משפט</th><th>מה יצא</th><th>מה נכשל</th></tr></thead>
+              <tbody>
+                {failed.map((r) => (
+                  <tr key={r.id}>
+                    <td dir="ltr">{r.id}</td>
+                    <td>{r.text}</td>
+                    <td dir="ltr">{r.got}</td>
+                    <td>{r.failures.join(' · ')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
 const Card = styled.section`
   background: #fff;
   border: 1px solid #e2e8f0;

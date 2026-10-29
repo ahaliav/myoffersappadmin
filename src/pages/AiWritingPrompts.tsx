@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { RefreshCw, Save, Upload, X, Eye, Lock, Power, History } from 'lucide-react';
 import { aiWritingAdminApi, type WritingBlock, type WritingFeature, type WritingPreview, type WritingVersion } from '../api/aiWritingAdminApi';
 import { apiErrorMessage } from '../api/aiSettingsApi';
-import AiEvalCard from '../components/AiEvalCard';
+import AiEvalCard, { RouterEvalCard } from '../components/AiEvalCard';
 
 // ---------------------------------------------------------------------------------------------
 // Admin "כתיבה עם AI": the layered writing prompts (identity, base, modes, styles, lengths, examples,
@@ -78,6 +78,7 @@ export default function AiWritingPrompts() {
       {error && <Banner $tone="bad">{error}</Banner>}
       {notice && <Banner $tone="ok" onClick={() => setNotice(null)}>{notice}</Banner>}
       <AiEvalCard />
+      <RouterEvalCard />
 
       <Layout>
         <FeatureList>
