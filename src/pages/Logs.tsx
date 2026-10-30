@@ -118,6 +118,9 @@ const Pagination = styled.div`
   color: #64748b;
 `;
 
+// Hebrew page: right to left like the other admin pages (the table, toolbar and paging ran left to right).
+const PageWrap = styled.div`direction: rtl; text-align: right;`;
+
 const PAGE_SIZE = 50;
 
 export default function Logs() {
@@ -155,7 +158,7 @@ export default function Logs() {
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
 
   return (
-    <>
+    <PageWrap>
       <Title>לוגים</Title>
       <Toolbar>
         <Select value={level} onChange={(e) => { setLevel(e.target.value); setOffset(0); }}>
@@ -217,8 +220,8 @@ export default function Logs() {
         </Table>
         <Pagination>
           <span>
-            {total} רשומות
-            {totalPages > 1 && ` • עמוד ${currentPage} מתוך ${totalPages}`}
+            <bdi>{total.toLocaleString('he-IL')}</bdi> רשומות
+            {totalPages > 1 && <> • עמוד <bdi>{currentPage}</bdi> מתוך <bdi>{totalPages.toLocaleString('he-IL')}</bdi></>}
           </span>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <Btn
@@ -238,6 +241,6 @@ export default function Logs() {
           </div>
         </Pagination>
       </TableWrap>
-    </>
+    </PageWrap>
   );
 }
