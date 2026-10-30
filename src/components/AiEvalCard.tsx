@@ -76,25 +76,30 @@ interface RouterReport { ranAt: string; total: number; passed: number; percent: 
  * Today smart's router test set (backend: /api/admin/ai-eval/router-*): each sentence through the real router and code's
  * checks, against the intent and key it must get. Target ≥ 95%. Real model calls — use on staging, with Today smart on.
  */
-export function RouterEvalCard() {
+export function RouterEvalCard({ title = 'נתב Today smart', path = 'router', offMessage = 'ההרצה נכשלה (Today smart צריך להיות פעיל)' }: {
+  title?: string;
+  /** router (Today smart) or client-router (the customer agent, D63). */
+  path?: 'router' | 'client-router';
+  offMessage?: string;
+} = {}) {
   const [count, setCount] = useState(0);
   const [report, setReport] = useState<RouterReport | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    axiosClient.get<unknown[]>('/api/admin/ai-eval/router-cases').then((r) => setCount(r.data.length)).catch(() => setCount(0));
-  }, []);
+    axiosClient.get<unknown[]>(`/api/admin/ai-eval/${path}-cases`).then((r) => setCount(r.data.length)).catch(() => setCount(0));
+  }, [path]);
 
   const run = async () => {
     if (!window.confirm(`להריץ ${count} משפטים מול הנתב האמיתי? כל הרצה עולה כסף.`)) return;
     setRunning(true);
     setError(null);
     try {
-      const { data } = await axiosClient.post<RouterReport>('/api/admin/ai-eval/router-run', {});
+      const { data } = await axiosClient.post<RouterReport>(`/api/admin/ai-eval/${path}-run`, {});
       setReport(data);
     } catch (e) {
-      setError(apiErrorMessage(e, 'ההרצה נכשלה (Today smart צריך להיות פעיל)'));
+      setError(apiErrorMessage(e, offMessage));
     } finally {
       setRunning(false);
     }
@@ -102,9 +107,9 @@ export function RouterEvalCard() {
 
   const failed = report?.results.filter((r) => !r.passed) ?? [];
   return (
-    <Card aria-label="נתב Today smart">
+    <Card aria-label={title}>
       <Head>
-        <h2>נתב Today smart ({count} משפטים)</h2>
+        <h2>{title} ({count} משפטים)</h2>
         <RunBtn type="button" onClick={() => void run()} disabled={running || count === 0}>
           <Play size={14} /> {running ? 'מריץ…' : 'הרץ'}
         </RunBtn>

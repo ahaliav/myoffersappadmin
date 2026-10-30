@@ -79,6 +79,7 @@ export default function AiWritingPrompts() {
       {notice && <Banner $tone="ok" onClick={() => setNotice(null)}>{notice}</Banner>}
       <AiEvalCard />
       <RouterEvalCard />
+      <RouterEvalCard title="נתב כרטיס לקוח" path="client-router" offMessage="ההרצה נכשלה (הסוכן בכרטיס הלקוח צריך להיות פעיל)" />
 
       <Layout>
         <FeatureList>
