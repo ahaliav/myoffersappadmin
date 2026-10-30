@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Save } from 'lucide-react';
 import { agentSettingsApi, type AgentSettings as Data } from '../api/agentSettingsApi';
+import CustomStates from './CustomStates';
 
 const PageWrap = styled.div`direction: rtl; text-align: right;`;
 const Title = styled.h1`margin: 0 0 0.5rem; font-size: 1.75rem; font-weight: 700; color: #0f172a;`;
@@ -23,7 +24,7 @@ const Btn = styled.button`
 `;
 const ErrorText = styled.p`color: #b91c1c; font-size: 0.875rem;`;
 
-type TabKey = 'numbers' | 'texts' | 'lists' | 'history';
+type TabKey = 'numbers' | 'texts' | 'lists' | 'states' | 'history';
 
 const LIST_NAMES: Record<string, string> = {
   client_agent_topics: 'נושאי הודעה (הנחיה לכל נושא)',
@@ -72,6 +73,7 @@ export default function AgentSettings() {
         <Tab $on={tab === 'numbers'} onClick={() => setTab('numbers')}>מספרים ומתגים ({data.settings.length})</Tab>
         <Tab $on={tab === 'texts'} onClick={() => setTab('texts')}>טקסטים ({data.texts.length})</Tab>
         <Tab $on={tab === 'lists'} onClick={() => setTab('lists')}>טבלאות ({data.lists.length})</Tab>
+        <Tab $on={tab === 'states'} onClick={() => setTab('states')}>מצבים מותאמים</Tab>
         <Tab $on={tab === 'history'} onClick={() => setTab('history')}>היסטוריה</Tab>
       </Tabs>
       {error && <ErrorText role="alert">{error}</ErrorText>}
@@ -131,6 +133,8 @@ export default function AgentSettings() {
           })}
         </div>
       ))}
+
+      {tab === 'states' && <CustomStates />}
 
       {tab === 'history' && data.history.map((h) => (
         <Card key={h.key + h.changedAt}>

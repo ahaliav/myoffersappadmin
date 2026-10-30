@@ -152,6 +152,10 @@ export interface AdminAiUsageRowDto {
   requestsUsed: number;
   tokensUsed: number;
   periodYearMonth: string;
+  /** D72: this month's AI cost (USD), the limit in force (null = no cap) and the user's own limit (null = the plan's). */
+  costUsedUsd?: number;
+  costLimitUsd?: number | null;
+  overrideCostLimitUsd?: number | null;
 }
 
 export interface AdminUpdateUserAiQuotaDto {
@@ -159,6 +163,8 @@ export interface AdminUpdateUserAiQuotaDto {
   bonusMonthlyTokens: number;
   overrideRequestLimit?: number | null;
   overrideTokenLimit?: number | null;
+  /** The user's monthly AI cost limit in USD: 0 = no cap, null = the plan's / the default. */
+  overrideCostLimitUsd?: number | null;
 }
 
 export interface AdminAiUsageLogDto {
@@ -239,6 +245,9 @@ export interface MyAiUsageStatusDto {
   bonusMonthlyTokens: number;
   overrideRequestLimit?: number | null;
   overrideTokenLimit?: number | null;
+  costUsedUsd?: number;
+  costLimitUsd?: number | null;
+  overrideCostLimitUsd?: number | null;
 }
 
 // baseURL includes /api/ and server uses PathBase /api → paths need /api/admin to get /api/api/admin

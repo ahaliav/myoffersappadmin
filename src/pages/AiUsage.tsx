@@ -106,6 +106,23 @@ const LogsBox = styled.div`
   padding: 0.5rem;
 `;
 
+const usd = (n: number) => `$${n.toFixed(2)}`;
+
+/** D72: this month's AI cost against the limit in force; from 80% it turns orange, at the limit red. */
+function CostCell({ row }: { row: AdminAiUsageRowDto }) {
+  const used = row.costUsedUsd ?? 0;
+  const limit = row.costLimitUsd ?? null;
+  const pct = limit ? used / limit : 0;
+  const color = limit && pct >= 1 ? '#dc2626' : limit && pct >= 0.8 ? '#d97706' : '#0f172a';
+  return (
+    <span style={{ color, direction: 'ltr', display: 'inline-block' }}>
+      {usd(used)}
+      {limit != null ? ` / ${usd(limit)}` : ''}
+      {limit == null && <span style={{ color: '#94a3b8', direction: 'rtl', display: 'inline-block', marginRight: '0.3rem' }}>(ללא תקרה)</span>}
+    </span>
+  );
+}
+
 function normLog(x: unknown): AdminAiUsageLogDto {
   const row = x as Record<string, unknown>;
   return {
@@ -157,6 +174,7 @@ export default function AiUsage() {
         bonusMonthlyTokens: r.bonusMonthlyTokens,
         overrideRequestLimit: r.overrideRequestLimit ?? null,
         overrideTokenLimit: r.overrideTokenLimit ?? null,
+        overrideCostLimitUsd: r.overrideCostLimitUsd ?? null,
       },
     }));
   };
@@ -198,11 +216,17 @@ export default function AiUsage() {
           f.overrideTokenLimit === null || f.overrideTokenLimit === undefined
             ? null
             : Number(f.overrideTokenLimit),
+        // Sent every time: an empty field puts the user back on the plan's limit.
+        overrideCostLimitUsd:
+          f.overrideCostLimitUsd === null || f.overrideCostLimitUsd === undefined
+            ? null
+            : Number(f.overrideCostLimitUsd),
       });
       await load();
       setExpanded(null);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'שגיאה בשמירה');
+      const err = e as { response?: { data?: { message?: string } } };
+      setError(err.response?.data?.message ?? (e instanceof Error ? e.message : 'שגיאה בשמירה'));
     } finally {
       setSaving(null);
     }
@@ -232,6 +256,7 @@ export default function AiUsage() {
                 <Th>חבילה</Th>
                 <Th>בקשות</Th>
                 <Th>טוקנים</Th>
+                <Th>עלות החודש</Th>
                 <Th>בונוס / עקיפה</Th>
                 <Th />
               </tr>
@@ -262,10 +287,14 @@ export default function AiUsage() {
                       {r.tokensUsed}
                       {r.effectiveTokenLimit != null ? ` / ${r.effectiveTokenLimit}` : ' (ללא תקרה)'}
                     </Td>
+                    <Td>
+                      <CostCell row={r} />
+                    </Td>
                     <Td style={{ fontSize: '0.8125rem' }}>
                       +{r.bonusMonthlyRequests} בקשות, +{r.bonusMonthlyTokens} טוקנים
                       <br />
                       עקיפה: {r.overrideRequestLimit ?? '—'} / {r.overrideTokenLimit ?? '—'}
+                      {r.overrideCostLimitUsd != null && <> / {usd(r.overrideCostLimitUsd)}</>}
                     </Td>
                     <Td>
                       <Btn type="button" $secondary onClick={() => openEdit(r)}>
@@ -285,7 +314,7 @@ export default function AiUsage() {
                   </tr>
                   {logsOpen === r.userId && (
                     <tr>
-                      <Td colSpan={6}>
+                      <Td colSpan={7}>
                         <LogsBox>
                           {(logsByUser[r.userId] ?? []).length === 0 ? (
                             <span style={{ color: '#94a3b8' }}>אין רשומות או טוען…</span>
@@ -312,7 +341,7 @@ export default function AiUsage() {
                   )}
                   {expanded === r.userId && editForm[r.userId] && (
                     <tr>
-                      <Td colSpan={6}>
+                      <Td colSpan={7}>
                         <Panel>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
                             <div>
@@ -363,6 +392,26 @@ export default function AiUsage() {
                                       ...prev[r.userId]!,
                                       overrideRequestLimit:
                                         e.target.value === '' ? null : parseInt(e.target.value, 10),
+                                    },
+                                  }))
+                                }
+                              />
+                            </div>
+                            <div>
+                              <Label>תקרת עלות חודשית $ (ריק = לפי החבילה, 0 = בלי תקרה)</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                placeholder="לפי החבילה"
+                                aria-label="תקרת עלות חודשית"
+                                value={editForm[r.userId].overrideCostLimitUsd ?? ''}
+                                onChange={(e) =>
+                                  setEditForm((prev) => ({
+                                    ...prev,
+                                    [r.userId]: {
+                                      ...prev[r.userId]!,
+                                      overrideCostLimitUsd: e.target.value === '' ? null : Number(e.target.value),
                                     },
                                   }))
                                 }
