@@ -156,6 +156,8 @@ export interface AdminAiUsageRowDto {
   costUsedUsd?: number;
   costLimitUsd?: number | null;
   overrideCostLimitUsd?: number | null;
+  /** D77: calls this month on a model without a price; while above 0 the cost is incomplete. */
+  costUnpricedCalls?: number;
 }
 
 export interface AdminUpdateUserAiQuotaDto {
@@ -248,6 +250,8 @@ export interface MyAiUsageStatusDto {
   costUsedUsd?: number;
   costLimitUsd?: number | null;
   overrideCostLimitUsd?: number | null;
+  /** D77: calls this month on a model without a price; while above 0 the cost is incomplete. */
+  costUnpricedCalls?: number;
 }
 
 // baseURL includes /api/ and server uses PathBase /api → paths need /api/admin to get /api/api/admin

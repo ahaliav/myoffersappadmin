@@ -32,6 +32,24 @@ describe('AiUsageReportCard', () => {
     expect(screen.getByText('req-3')).toBeTruthy();
   });
 
+  it('says the cost is partial and names the models without a price (D77)', async () => {
+    get.mockResolvedValue({
+      data: {
+        days: 7, calls: 2, failed: 0, estimatedCost: null, unpricedCalls: 2, unpricedModels: ['openai/gpt-4.1'],
+        features: [{ operation: 'chat', promptKey: null, calls: 2, failed: 0, p50Ms: null, p95Ms: null,
+          inputTokens: 100, outputTokens: 50, estimatedCost: null, errors: {}, unpricedCalls: 2 }],
+        recentFailures: [],
+      },
+    });
+
+    render(<AiUsageReportCard />);
+
+    const note = await screen.findByRole('status');
+    expect(note.textContent).toContain('העלות חלקית: 2 קריאות');
+    expect(note.textContent).toContain('openai/gpt-4.1');
+    expect(screen.getByText('— ⚠ 2 בלי מחיר', { exact: false })).toBeTruthy();
+  });
+
   it('asks for another time range and shows a clear error when the report fails', async () => {
     get.mockRejectedValueOnce({ response: { status: 500, data: { message: 'boom' } } });
     render(<AiUsageReportCard />);

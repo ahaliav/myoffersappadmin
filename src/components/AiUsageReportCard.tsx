@@ -16,6 +16,7 @@ interface FeatureRow {
   outputTokens: number;
   estimatedCost: number | null;
   errors: Record<string, number>;
+  unpricedCalls?: number;
 }
 
 interface FailureRow {
@@ -36,6 +37,9 @@ interface Report {
   estimatedCost: number | null;
   features: FeatureRow[];
   recentFailures: FailureRow[];
+  /** D77: calls on a model without a price (left out of the estimate) and which models they were. */
+  unpricedCalls?: number;
+  unpricedModels?: string[] | null;
 }
 
 const usd = (n: number | null) => (n == null ? '—' : `$${n.toFixed(n < 1 ? 4 : 2)}`);
@@ -79,6 +83,13 @@ export default function AiUsageReportCard() {
             <span>נכשלו: <b>{report.failed.toLocaleString()}</b> ({pct(report.failed, report.calls)})</span>
             <span>עלות משוערת: <b>{usd(report.estimatedCost)}</b></span>
           </Stats>
+          {(report.unpricedCalls ?? 0) > 0 && (
+            <ErrorText role="status">
+              העלות חלקית: {report.unpricedCalls} קריאות על מודל בלי מחיר
+              {report.unpricedModels?.length ? <> (<span dir="ltr">{report.unpricedModels.join(', ')}</span>)</> : null}
+              . יש להוסיף מחיר בהגדרות ה-AI.
+            </ErrorText>
+          )}
           {report.features.length === 0 ? <Muted>אין קריאות AI בטווח הזה.</Muted> : (
             <Table>
               <thead>
@@ -93,7 +104,7 @@ export default function AiUsageReportCard() {
                     <td>{f.p50Ms == null ? '—' : `${f.p50Ms} ms`}</td>
                     <td>{f.p95Ms == null ? '—' : `${f.p95Ms} ms`}</td>
                     <td>{f.inputTokens.toLocaleString()} / {f.outputTokens.toLocaleString()}</td>
-                    <td>{usd(f.estimatedCost)}</td>
+                    <td>{usd(f.estimatedCost)}{(f.unpricedCalls ?? 0) > 0 ? ` ⚠ ${f.unpricedCalls} בלי מחיר` : ''}</td>
                     <td dir="ltr">{Object.entries(f.errors).map(([k, v]) => `${k} ${v}`).join(', ') || '—'}</td>
                   </tr>
                 ))}

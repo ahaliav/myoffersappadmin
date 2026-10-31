@@ -119,6 +119,11 @@ function CostCell({ row }: { row: AdminAiUsageRowDto }) {
       {usd(used)}
       {limit != null ? ` / ${usd(limit)}` : ''}
       {limit == null && <span style={{ color: '#94a3b8', direction: 'rtl', display: 'inline-block', marginRight: '0.3rem' }}>(ללא תקרה)</span>}
+      {(row.costUnpricedCalls ?? 0) > 0 && (
+        <span style={{ color: '#d97706', direction: 'rtl', display: 'block' }} title="למודל שענה אין מחיר בהגדרות ה-AI">
+          ⚠ חלקי: {row.costUnpricedCalls} קריאות בלי מחיר
+        </span>
+      )}
     </span>
   );
 }
