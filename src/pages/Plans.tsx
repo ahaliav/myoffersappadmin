@@ -164,7 +164,7 @@ const emptyForm: CreatePlanRequest = {
 };
 
 export default function Plans() {
-  const { session } = useAuth();
+  const { user } = useAuth();
   const [list, setList] = useState<PlanDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -191,8 +191,8 @@ export default function Plans() {
   };
 
   useEffect(() => {
-    if (session) load();
-  }, [session]);
+    if (user) load();
+  }, [user]);
 
   const setAddField = (field: keyof CreatePlanRequest, value: string | number | boolean | null) => {
     setAddForm((prev) => ({ ...prev, [field]: value }));

@@ -142,7 +142,7 @@ function normLog(x: unknown): AdminAiUsageLogDto {
 }
 
 export default function AiUsage() {
-  const { session } = useAuth();
+  const { user } = useAuth();
   const [rows, setRows] = useState<AdminAiUsageRowDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -167,8 +167,8 @@ export default function AiUsage() {
   }, []);
 
   useEffect(() => {
-    if (session) void load();
-  }, [session, load]);
+    if (user) void load();
+  }, [user, load]);
 
   const openEdit = (r: AdminAiUsageRowDto) => {
     setExpanded(r.userId);

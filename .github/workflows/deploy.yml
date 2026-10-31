@@ -40,22 +40,16 @@ jobs:
         run: npm test
 
       # Vite inlines env vars at build time, so .env has to exist before `npm run build`.
-      # VITE_API_BASE_URL is optional - the code falls back to https://ahaliav.me/api/ when it is unset.
+      # Both are optional: VITE_API_BASE_URL falls back to https://ahaliav.me/api/, and without
+      # VITE_GOOGLE_CLIENT_ID the login page shows email + password only.
       - name: Write .env for the build
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID || secrets.VITE_GOOGLE_CLIENT_ID }}
         run: |
           set -euo pipefail
-          for name in VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY; do
-            if [ -z "${!name:-}" ]; then
-              echo "::error::Missing required repository secret $name"
-              exit 1
-            fi
-          done
           : > .env
-          for name in VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY VITE_API_BASE_URL; do
+          for name in VITE_API_BASE_URL VITE_GOOGLE_CLIENT_ID; do
             if [ -n "${!name:-}" ]; then
               printf '%s=%s\n' "$name" "${!name}" >> .env
             fi

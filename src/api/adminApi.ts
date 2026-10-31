@@ -41,17 +41,42 @@ export interface ApplicationLogsResponse {
   Total?: number;
 }
 
+/** A user in the admin's user management (sign-in is the API's own; the password hash never leaves the server). */
 export interface AdminUser {
-  id?: number;
-  Id?: number;
+  id: number;
+  fullName: string;
+  email: string;
+  createdAt: string;
+  updatedAt: string;
+  isAdmin: boolean;
+  emailVerified: boolean;
+  hasPassword: boolean;
+  hasGoogle: boolean;
+  disabled: boolean;
+  disabledAt?: string | null;
+}
+
+export interface AdminCreateUserRequest {
+  fullName: string;
+  email: string;
+  isAdmin: boolean;
+  /** Optional first password; without it the user gets a "choose a password" email. */
+  password?: string;
+  sendPasswordLink: boolean;
+}
+
+/** Only the fields that are set change. */
+export interface AdminUpdateUserRequest {
   fullName?: string;
-  FullName?: string;
   email?: string;
-  Email?: string;
-  createdAt?: string;
-  CreatedAt?: string;
-  updatedAt?: string;
-  UpdatedAt?: string;
+  isAdmin?: boolean;
+  disabled?: boolean;
+}
+
+export interface AdminBulkLinksResult {
+  sent: number;
+  skipped: number;
+  failed: number;
 }
 
 export interface AiPromptDto {
@@ -261,6 +286,21 @@ export const adminApi = {
 
   getUsers: () =>
     axiosClient.get<AdminUser[]>('/api/admin/users'),
+
+  createUser: (data: AdminCreateUserRequest) =>
+    axiosClient.post<AdminUser>('/api/admin/users', data),
+
+  updateUser: (id: number, data: AdminUpdateUserRequest) =>
+    axiosClient.put<AdminUser>(`/api/admin/users/${id}`, data),
+
+  sendPasswordLink: (id: number) =>
+    axiosClient.post(`/api/admin/users/${id}/send-password-link`),
+
+  setUserPassword: (id: number, password: string) =>
+    axiosClient.put<AdminUser>(`/api/admin/users/${id}/password`, { password }),
+
+  sendPasswordLinksToAll: () =>
+    axiosClient.post<AdminBulkLinksResult>('/api/admin/users/send-password-links'),
 
   getAiPrompts: () =>
     axiosClient.get<AiPromptDto[]>('/api/admin/ai-prompts'),

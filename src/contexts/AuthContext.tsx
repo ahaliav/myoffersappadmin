@@ -1,15 +1,14 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import type { User, Session } from '@supabase/supabase-js';
-import { AuthError } from '@supabase/supabase-js';
-import { supabase, clearSupabaseAuthStorage } from '../lib/supabaseClient';
+import { authApi, toAuthError } from '../api/authApi';
+import type { AuthErrorInfo, AuthResponse, AuthUser } from '../api/authApi';
+import { clearToken, getToken, setToken } from '../lib/authStorage';
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: AuthUser | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signInWithGoogle: () => Promise<{ error: AuthError | null }>;
-  signOut: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ error: AuthErrorInfo | null }>;
+  signInWithGoogle: (idToken: string) => Promise<{ error: AuthErrorInfo | null }>;
+  signOut: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,70 +21,68 @@ export const useAuth = () => {
   return context;
 };
 
+const NOT_ADMIN: AuthErrorInfo = { code: 'not_admin', message: 'This account has no admin access' };
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  // Loading only while a stored token is being checked.
+  const [loading, setLoading] = useState(() => Boolean(getToken()));
 
   useEffect(() => {
-    const clearStaleSession = () => {
-      setSession(null);
-      setUser(null);
-      clearSupabaseAuthStorage();
-      supabase.auth.signOut({ scope: 'local' }).catch(() => {});
-      window.location.href = '/login';
-    };
-
-    supabase.auth.getSession().then(({ data: { session: s }, error }) => {
-      if (error?.code === 'session_not_found' || error?.message?.includes('session_not_found')) {
-        clearStaleSession();
-      } else {
-        setSession(s);
-        setUser(s?.user ?? null);
-      }
-      setLoading(false);
-    }).catch(() => {
-      setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    if (!getToken()) return;
+    authApi
+      .me()
+      .then((res) => {
+        if (res.data.isAdmin) {
+          setUser(res.data);
+        } else {
+          clearToken();
+          setUser(null);
+        }
+      })
+      .catch(() => {
+        clearToken();
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error };
-  };
-
-  const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-    return { error: error as AuthError | null };
-  };
-
-  const signOut = async () => {
-    setSession(null);
-    setUser(null);
-    clearSupabaseAuthStorage();
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-    } catch {
-      // ignore
+  // Only admins use this app: a signed-in non-admin is signed straight out again.
+  const accept = (data: AuthResponse): { error: AuthErrorInfo | null } => {
+    if (!data.user.isAdmin) {
+      clearToken();
+      setUser(null);
+      return { error: NOT_ADMIN };
     }
+    setToken(data.token);
+    setUser(data.user);
+    return { error: null };
+  };
+
+  const signIn = async (email: string, password: string) => {
+    try {
+      return accept((await authApi.login(email.trim(), password)).data);
+    } catch (e) {
+      return { error: toAuthError(e) };
+    }
+  };
+
+  const signInWithGoogle = async (idToken: string) => {
+    try {
+      return accept((await authApi.google(idToken)).data);
+    } catch (e) {
+      return { error: toAuthError(e) };
+    }
+  };
+
+  const signOut = () => {
+    clearToken();
+    setUser(null);
     window.location.href = '/login';
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signInWithGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   );
