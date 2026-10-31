@@ -54,6 +54,8 @@ export interface AdminUser {
   hasGoogle: boolean;
   disabled: boolean;
   disabledAt?: string | null;
+  /** Only on create: whether the "choose a password" email actually went out. */
+  passwordLinkSent?: boolean | null;
 }
 
 export interface AdminCreateUserRequest {

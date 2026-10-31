@@ -289,9 +289,10 @@ export default function Users() {
       setUsers((prev) => [res.data, ...prev]);
       setCreateForm(emptyCreate);
       setShowCreate(false);
-      return password || !createForm.sendPasswordLink
-        ? `המשתמש ${res.data.email} נוצר`
-        : `המשתמש ${res.data.email} נוצר ונשלח אליו מייל לבחירת סיסמה`;
+      if (password || !createForm.sendPasswordLink) return `המשתמש ${res.data.email} נוצר`;
+      return res.data.passwordLinkSent
+        ? `המשתמש ${res.data.email} נוצר ונשלח אליו מייל לבחירת סיסמה`
+        : `המשתמש ${res.data.email} נוצר, אבל המייל לבחירת סיסמה לא נשלח (בדקו את הגדרות המייל בשרת). אפשר לשלוח שוב או לקבוע סיסמה.`;
     });
 
   const startEdit = (u: AdminUser) => {
