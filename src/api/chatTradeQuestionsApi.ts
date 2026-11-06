@@ -23,7 +23,7 @@ export type TradeQuestionInput = Omit<TradeQuestion, 'id' | 'updatedAt' | 'updat
 
 /** The chat's switches (backend: /api/admin/quote-chat/settings): qc_enabled is off | on | users:<id>,<id>; the rest on | off. */
 export interface QuoteChatSetting {
-  key: 'qc_enabled' | 'qc_photos' | 'qc_trade_questions' | 'qc_ai_descriptions' | 'qc_guard_min_said_pct' | 'qc_guard_filler_words' | 'qc_targeted_edit' | 'qc_edit_ops' | 'qc_edit_verbatim_phrases';
+  key: 'qc_enabled' | 'qc_photos' | 'qc_trade_questions' | 'qc_ai_descriptions' | 'qc_guard_min_said_pct' | 'qc_guard_filler_words' | 'qc_targeted_edit' | 'qc_edit_ops' | 'qc_edit_verbatim_phrases' | 'qc_free_chat' | 'qc_max_questions';
   value: string;
   description: string | null;
   updatedAt: string | null;

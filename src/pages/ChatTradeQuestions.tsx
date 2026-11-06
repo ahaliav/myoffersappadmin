@@ -36,6 +36,8 @@ const SWITCHES: Record<string, string> = {
   qc_targeted_edit: 'תיקון קצר משנה רק את מה שביקשו (on / off)',
   qc_edit_ops: 'פעולות תיקון מותרות (ריק = הכל, או רשימה מופרדת בפסיקים)',
   qc_edit_verbatim_phrases: 'ביטויים ל"תרשום בדיוק" (מופרדים בפסיקים)',
+  qc_free_chat: 'שיחה חופשית: ה-AI שואל רק מה שחסר + "הכן טיוטה" (off / on / users:12,34)',
+  qc_max_questions: 'כמה שאלות ה-AI שואל בהצעה אחת (0–10)',
 };
 
 /** The chat's switches: each change applies at once and is kept in the history. */
