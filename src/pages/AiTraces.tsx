@@ -139,6 +139,9 @@ interface GuardDetails {
   units?: number;
   validity?: number | null;
   descriptions?: { item: string; line: string; kept: boolean; reason: string; saidPct: number; unsaid: string[] }[];
+  /** A3: the operations the edit prompt returned and what the code did with each. */
+  edit?: { op: string; applied: boolean; reason: string; detail?: string | null }[];
+  question?: string | null;
 }
 
 function parse<T>(raw: string | null): T | null {
@@ -148,7 +151,38 @@ function parse<T>(raw: string | null): T | null {
 
 const REASONS: Record<string, string> = { ok: 'נאמר', number: 'מספר שלא נאמר', brand: 'מותג / מילה לועזית שלא נאמרה', words: 'רוב המילים לא נאמרו' };
 
+const EDIT_REASONS: Record<string, string> = {
+  ok: 'בוצע', no_place: 'לא נמצא המקום', no_remove_word: 'לא נאמרה מילת הסרה', same_place: 'כבר במקום',
+  empty: 'ריק', nothing_said: 'אין שינוי שנאמר', unsaid_line: 'שורה שלא נאמרה', unsaid_name: 'שם שלא נאמר',
+  unsaid_note: 'הערה שלא נאמרה', unsaid_title: 'כותרת שלא נאמרה', unknown: 'פעולה לא מוכרת', not_allowed: 'פעולה כבויה בהגדרות',
+};
+
+function EditView({ details }: { details: GuardDetails }) {
+  const ops = details.edit ?? [];
+  return (
+    <>
+      <H3>פעולות התיקון</H3>
+      {details.question && <Meta><span>שאלה ללקוח: {details.question}</span></Meta>}
+      {ops.length === 0 ? <Muted>לא הוחזרו פעולות</Muted> : (
+        <Table style={{ marginTop: '0.5rem' }}>
+          <thead><tr><th>פעולה</th><th>החלטה</th><th>פרט</th></tr></thead>
+          <tbody>
+            {ops.map((o, i) => (
+              <tr key={i}>
+                <td dir="ltr">{o.op}</td>
+                <td><Badge $tone={o.applied ? 'ok' : 'warn'}>{o.applied ? 'בוצע' : 'לא בוצע'}</Badge> <Muted>{EDIT_REASONS[o.reason.split(':')[0]] ?? o.reason}</Muted></td>
+                <td>{o.detail}</td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+    </>
+  );
+}
+
 function GuardView({ details }: { details: GuardDetails }) {
+  if (details.edit) return <EditView details={details} />;
   const descriptions = details.descriptions ?? [];
   return (
     <>
