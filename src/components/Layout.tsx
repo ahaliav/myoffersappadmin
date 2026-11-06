@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
   PenLine,
   ListChecks,
+  SearchCode,
 } from 'lucide-react';
 
 const Page = styled.div`
@@ -191,6 +192,10 @@ export default function Layout() {
           <NavItem to="/ai-settings">
             <SlidersHorizontal size={20} />
             הגדרות AI
+          </NavItem>
+          <NavItem to="/ai-traces">
+            <SearchCode size={20} />
+            מה קרה בקריאה
           </NavItem>
           <NavItem to="/ai-writing">
             <PenLine size={20} />

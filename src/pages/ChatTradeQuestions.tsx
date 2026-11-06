@@ -68,7 +68,7 @@ function Switches() {
         {data.settings.map((s) => (
           <Label key={s.key}>
             {SWITCHES[s.key] ?? s.key}
-            <Input dir="ltr" value={values[s.key] ?? ''} onChange={(e) => setValues((p) => ({ ...p, [s.key]: e.target.value }))} aria-label={s.key} />
+            <Input dir={s.key === 'qc_guard_filler_words' ? 'rtl' : 'ltr'} value={values[s.key] ?? ''} onChange={(e) => setValues((p) => ({ ...p, [s.key]: e.target.value }))} aria-label={s.key} />
             <Row style={{ marginTop: 0 }}>
               {s.updatedBy && <Muted>{s.updatedBy}</Muted>}
               <Btn type="button" disabled={saving === s.key || values[s.key] === s.value} onClick={() => void save(s.key)}>שמירה</Btn>
