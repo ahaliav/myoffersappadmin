@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { RefreshCw, Save, Upload, X, Eye, Lock, Power, History } from 'lucide-react';
-import { aiWritingAdminApi, type WritingBlock, type WritingFeature, type WritingPreview, type WritingVersion } from '../api/aiWritingAdminApi';
-import { apiErrorMessage } from '../api/aiSettingsApi';
+import { aiWritingAdminApi, aiCacheAdminApi, type WritingBlock, type WritingFeature, type WritingPreview, type WritingVersion } from '../api/aiWritingAdminApi';
+import { aiSettingsApi, apiErrorMessage, type AiModel } from '../api/aiSettingsApi';
 import AiEvalCard, { RouterEvalCard } from '../components/AiEvalCard';
+import { BehaviourCard, TextsListsCard } from '../components/AiBehaviourCards';
 
 // ---------------------------------------------------------------------------------------------
 // Admin "כתיבה עם AI": the layered writing prompts (identity, base, modes, styles, lengths, examples,
@@ -21,8 +22,14 @@ const LAYER_LABELS: Record<string, string> = {
   length: 'אורך',
   example: 'דוגמה',
   output: 'פורמט פלט',
+  question: 'שאלה',
+  message: 'הודעה',
+  action: 'פעולות',
+  rules: 'כללים',
+  read: 'קריאה',
 };
-const LAYER_ORDER = ['identity', 'base', 'mode', 'type', 'style', 'length', 'example', 'output'];
+// Known layers first, in this order; any other layer the server has is shown after them (fix 7, 8.11: nothing hidden).
+const LAYER_ORDER = ['identity', 'base', 'rules', 'mode', 'type', 'style', 'length', 'action', 'read', 'question', 'message', 'example', 'output'];
 
 const formatDate = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '—';
@@ -77,6 +84,9 @@ export default function AiWritingPrompts() {
       </Muted>
       {error && <Banner $tone="bad">{error}</Banner>}
       {notice && <Banner $tone="ok" onClick={() => setNotice(null)}>{notice}</Banner>}
+      <CacheCard />
+      <BehaviourCard />
+      <TextsListsCard />
       <AiEvalCard />
       <RouterEvalCard />
       <RouterEvalCard title="נתב כרטיס לקוח" path="client-router" offMessage="ההרצה נכשלה (הסוכן בכרטיס הלקוח צריך להיות פעיל)" />
@@ -100,11 +110,68 @@ export default function AiWritingPrompts() {
   );
 }
 
+// Fix 7 (8.11): saved AI answers. A newer published prompt already makes a saved answer stale; these clear them now.
+function CacheCard() {
+  const [userId, setUserId] = useState('');
+  const [counts, setCounts] = useState<{ customerAnalyses: number; dataAnswers: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const uid = /^\d+$/.test(userId.trim()) ? Number(userId.trim()) : null;
+
+  const refresh = useCallback(async () => {
+    try {
+      const { data } = await aiCacheAdminApi.counts(uid);
+      setCounts(data);
+    } catch (e) {
+      setMessage(apiErrorMessage(e, 'טעינת המונים נכשלה'));
+    }
+  }, [uid]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const clear = async (what: 'customer' | 'data') => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const { data } = what === 'customer' ? await aiCacheAdminApi.clearCustomerAnalyses(uid) : await aiCacheAdminApi.clearDataAnswers(uid);
+      setMessage(`נמחקו ${data.deleted} תשובות שמורות${uid ? ` של משתמש ${uid}` : ''}.`);
+      await refresh();
+    } catch (e) {
+      setMessage(apiErrorMessage(e, 'המחיקה נכשלה'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardTitle>תשובות AI שמורות</CardTitle>
+      <Muted>
+        פרסום פרומפט כבר מבטל תשובות ישנות שלו. כאן אפשר לנקות עכשיו, לכולם או למשתמש אחד, כדי שהבדיקה הבאה תרוץ על תשובה חדשה.
+      </Muted>
+      <Actions>
+        <label>
+          משתמש (ריק = כולם){' '}
+          <input value={userId} onChange={(e) => setUserId(e.target.value)} inputMode="numeric" style={{ width: 90 }} />
+        </label>
+        <Btn $variant="secondary" disabled={busy} onClick={() => void clear('customer')}>
+          ניקוי ניתוחי כרטיס לקוח ({counts?.customerAnalyses ?? '…'})
+        </Btn>
+        <Btn $variant="secondary" disabled={busy} onClick={() => void clear('data')}>
+          ניקוי תשובות עמוד נתונים ({counts?.dataAnswers ?? '…'})
+        </Btn>
+      </Actions>
+      {message && <Muted>{message}</Muted>}
+    </Card>
+  );
+}
+
 function FeatureEditor({ feature, onChanged, onToggle }: { feature: WritingFeature; onChanged: () => Promise<void>; onToggle: () => void }) {
   const groups = useMemo(() => {
     const by = new Map<string, WritingBlock[]>();
     for (const b of feature.blocks) by.set(b.layer, [...(by.get(b.layer) ?? []), b]);
-    return LAYER_ORDER.filter((l) => by.has(l)).map((l) => ({ layer: l, blocks: by.get(l)! }));
+    const order = [...LAYER_ORDER.filter((l) => by.has(l)), ...[...by.keys()].filter((l) => !LAYER_ORDER.includes(l)).sort()];
+    return order.map((l) => ({ layer: l, blocks: by.get(l)! }));
   }, [feature.blocks]);
   const drafts = feature.blocks.filter((b) => b.draft !== null).length + (feature.userTemplateDraft !== null ? 1 : 0);
   const templateBlock: WritingBlock = {
@@ -128,10 +195,11 @@ function FeatureEditor({ feature, onChanged, onToggle }: { feature: WritingFeatu
           {feature.styleList && <span>סגנונות: {feature.styleList}</span>}
           {feature.lengthList && <span>אורכים: {feature.lengthList}</span>}
           {feature.typeList && <span>סוגים: {feature.typeList}</span>}
-          <span>מקסימום טוקנים: {feature.maxTokens ?? '—'}</span>
           {drafts > 0 && <span style={{ color: '#b45309' }}>{drafts} טיוטות שלא פורסמו</span>}
         </Meta>
       </Card>
+
+      <SettingsCard feature={feature} onChanged={onChanged} />
 
       <Card>
         <CardTitle>תבנית הנתונים (שכבה 3)</CardTitle>
@@ -245,6 +313,72 @@ function BlockEditor({ block, onChanged }: { block: WritingBlock; onChanged: () 
   );
 }
 
+let modelsCache: Promise<AiModel[]> | null = null;
+const textModels = () => {
+  modelsCache ??= aiSettingsApi.get().then((r) => r.data.models.filter((m) => m.enabled && m.capabilities.includes('text')))
+    .catch((e) => { modelsCache = null; throw e; });
+  return modelsCache;
+};
+
+/** Fix 1 (8.11): model, temperature and output length for this prompt only; empty = the group's setting. */
+function SettingsCard({ feature, onChanged }: { feature: WritingFeature; onChanged: () => Promise<void> }) {
+  const [models, setModels] = useState<AiModel[]>([]);
+  const [model, setModel] = useState(feature.model ?? '');
+  const [temperature, setTemperature] = useState(feature.temperature?.toString() ?? '');
+  const [maxTokens, setMaxTokens] = useState(feature.maxTokens?.toString() ?? '');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
+  useEffect(() => { void textModels().then(setModels).catch(() => setModels([])); }, []);
+
+  const dirty = model !== (feature.model ?? '') || temperature !== (feature.temperature?.toString() ?? '')
+    || maxTokens !== (feature.maxTokens?.toString() ?? '');
+  const isClaude = model.startsWith('claude');
+  const save = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await aiWritingAdminApi.setSettings(feature.key, {
+        model: model || null,
+        temperature: temperature.trim() === '' ? null : Number(temperature),
+        maxTokens: maxTokens.trim() === '' ? null : Number(maxTokens),
+      });
+      setMsg({ tone: 'ok', text: 'נשמר. נכנס לתוקף תוך דקה.' });
+      await onChanged();
+    } catch (e) {
+      setMsg({ tone: 'bad', text: apiErrorMessage(e, 'השמירה נכשלה') });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardTitle>מודל להוראה הזו</CardTitle>
+      <Muted>ריק = המודל של הקבוצה (הגדרות AI). שינוי כאן חל רק על {feature.key}.</Muted>
+      <Meta>
+        <label>מודל
+          <select value={model} onChange={(e) => setModel(e.target.value)} style={{ width: '13rem' }}>
+            <option value="">ברירת המחדל של הקבוצה</option>
+            {models.map((m) => <option key={m.modelKey} value={m.modelKey}>{m.displayName} ({m.modelKey})</option>)}
+            {model && !models.some((m) => m.modelKey === model) && <option value={model}>{model}</option>}
+          </select>
+        </label>
+        <label title="0 = עקבי, 1 = יצירתי. מודלי Claude מתעלמים (ה-API לא מקבל טמפרטורה).">טמפרטורה
+          <input type="number" min={0} max={2} step={0.1} value={temperature} placeholder="ברירת מחדל"
+            onChange={(e) => setTemperature(e.target.value)} />
+        </label>
+        <label>מקסימום טוקנים
+          <input type="number" min={16} max={32000} step={50} value={maxTokens} placeholder="ברירת מחדל"
+            onChange={(e) => setMaxTokens(e.target.value)} />
+        </label>
+        <Btn disabled={busy || !dirty} onClick={() => void save()}><Save size={14} /> שמור</Btn>
+      </Meta>
+      {isClaude && temperature !== '' && <Muted>מודלי Claude לא מקבלים טמפרטורה: הערך יישמר ויחול רק אם תחזרו למודל של OpenAI.</Muted>}
+      {msg && <Banner $tone={msg.tone}>{msg.text}</Banner>}
+    </Card>
+  );
+}
+
 function PreviewCard({ feature }: { feature: WritingFeature }) {
   const [mode, setMode] = useState(feature.modes[0] ?? '');
   const [style, setStyle] = useState('');
@@ -255,8 +389,11 @@ function PreviewCard({ feature }: { feature: WritingFeature }) {
   const [preview, setPreview] = useState<WritingPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const run = async () => {
+  const [running, setRunning] = useState(false);
+
+  const run = async (callAi = false) => {
     setError(null);
+    setRunning(callAi);
     const variables: Record<string, string> = {};
     for (const line of vars.split('\n')) {
       const i = line.indexOf('=');
@@ -264,11 +401,13 @@ function PreviewCard({ feature }: { feature: WritingFeature }) {
     }
     try {
       const { data } = await aiWritingAdminApi.preview(feature.key, {
-        mode, style: style || null, length: length || null, type: type || null, variables, useDrafts,
+        mode, style: style || null, length: length || null, type: type || null, variables, useDrafts, run: callAi,
       });
       setPreview(data);
     } catch (e) {
       setError(apiErrorMessage(e, 'התצוגה המקדימה נכשלה'));
+    } finally {
+      setRunning(false);
     }
   };
 
@@ -284,7 +423,11 @@ function PreviewCard({ feature }: { feature: WritingFeature }) {
       </Meta>
       <Muted>ערכים לדוגמה, שורה לכל משתנה: name=value</Muted>
       <TextArea dir="auto" rows={4} value={vars} onChange={(e) => setVars(e.target.value)} />
-      <Actions><Btn onClick={() => void run()}><Eye size={14} /> הצג</Btn></Actions>
+      <Actions>
+        <Btn onClick={() => void run()}><Eye size={14} /> הצג</Btn>
+        {/* Tool 4 (8.11): the draft runs once for you only; users keep the published prompt until "פרסום". */}
+        <Btn $variant="secondary" disabled={running} onClick={() => void run(true)}>{running ? 'מריץ…' : 'נסה עכשיו (קריאה אחת ל-AI)'}</Btn>
+      </Actions>
       {error && <Banner $tone="bad">{error}</Banner>}
       {preview && (
         <>
@@ -293,6 +436,26 @@ function PreviewCard({ feature }: { feature: WritingFeature }) {
           <Locked dir="auto">{preview.system}</Locked>
           <PreviewLabel>User</PreviewLabel>
           <Locked dir="auto">{preview.user}</Locked>
+          <Muted style={{ marginTop: '0.5rem' }}>
+            מודל: {preview.model || 'של הקבוצה'} · טמפרטורה: {preview.temperature ?? 'ברירת מחדל'} · מקסימום טוקנים: {preview.maxTokens ?? 'ברירת מחדל'}
+          </Muted>
+          {(preview.output != null || preview.runError) && (
+            <>
+              <PreviewLabel>תשובת ה-AI{preview.servedBy ? ` (${preview.servedBy})` : ''}</PreviewLabel>
+              {preview.runError ? <Banner $tone="bad">{preview.runError}</Banner> : <Locked dir="auto">{preview.output}</Locked>}
+            </>
+          )}
+          {preview.extras && preview.extras.length > 0 && (
+            <>
+              <PreviewLabel>שכבות שהקוד מצרף לפי המצב (פעולה, הודעה, שאלה, כללים)</PreviewLabel>
+              {preview.extras.map((x) => (
+                <div key={x.key} style={{ marginBottom: '0.5rem' }}>
+                  <Code>{x.key}</Code>{x.maxTokens ? <small> · עד {x.maxTokens} טוקנים</small> : null}
+                  <Locked dir="auto">{x.text}</Locked>
+                </div>
+              ))}
+            </>
+          )}
         </>
       )}
     </Card>
