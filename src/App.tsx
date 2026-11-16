@@ -24,6 +24,8 @@ import AiWritingPrompts from './pages/AiWritingPrompts';
 import AgentSettings from './pages/AgentSettings';
 import DataSettings from './pages/DataSettings';
 import AiTraces from './pages/AiTraces';
+import WhatsAppChannel from './pages/WhatsAppChannel';
+import RolePermissions from './pages/RolePermissions';
 
 function App() {
   return (
@@ -59,6 +61,8 @@ function App() {
               <Route path="agent-settings" element={<AgentSettings />} />
               <Route path="data-settings" element={<DataSettings />} />
               <Route path="ai-traces" element={<AiTraces />} />
+              <Route path="whatsapp" element={<WhatsAppChannel />} />
+              <Route path="role-permissions" element={<RolePermissions />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

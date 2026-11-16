@@ -19,6 +19,8 @@ import {
   PenLine,
   ListChecks,
   SearchCode,
+  MessageCircle,
+  KeyRound,
 } from 'lucide-react';
 
 const Page = styled.div`
@@ -196,6 +198,14 @@ export default function Layout() {
           <NavItem to="/ai-traces">
             <SearchCode size={20} />
             מה קרה בקריאה
+          </NavItem>
+          <NavItem to="/whatsapp">
+            <MessageCircle size={20} />
+            ערוץ וואטסאפ
+          </NavItem>
+          <NavItem to="/role-permissions">
+            <KeyRound size={20} />
+            הרשאות לפי תפקיד
           </NavItem>
           <NavItem to="/ai-writing">
             <PenLine size={20} />
