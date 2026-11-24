@@ -54,7 +54,7 @@ describe('AiTraces (B1 "מה קרה בקריאה")', () => {
     } } as never);
     render(<AiTraces />);
     await screen.findByText('{"sections":[]}');   // the list has loaded
-    const rows = screen.getAllByText('השומר');
+    const rows = screen.getAllByText(/^השומר · /); // AI-11: the row names its guard
     fireEvent.click(rows[rows.length - 1]);
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(12));
     expect(await screen.findByText('אחריות Grohe')).toBeTruthy();

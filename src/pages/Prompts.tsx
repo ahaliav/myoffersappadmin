@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { adminApi, aiArchitectureApi, type AiPromptDto, type PromptVersionDto, type DataVariableDto, type PromptDataBindingDto, type PromptTestResponse } from '../api/adminApi';
+import ModelSelect from '../components/ModelSelect';
 import { RefreshCw, Save, ChevronDown, ChevronUp, History, RotateCcw, Link, Plus, Trash2, Camera, FlaskConical } from 'lucide-react';
 
 const PageWrap = styled.div`
@@ -467,7 +468,7 @@ export default function Prompts() {
                           </div>
                           <div>
                             <Label>מודל</Label>
-                            <Input value={e.model ?? ''} onChange={(ev) => setEdit(p.id, 'model', ev.target.value)} placeholder="gpt-4o-mini" />
+                            <ModelSelect value={e.model ?? ''} onChange={(m) => setEdit(p.id, 'model', m)} emptyLabel="ברירת המחדל (הגדרות AI)" ariaLabel={`מודל: ${p.key}`} />
                           </div>
                           <div>
                             <Label>Sort order</Label>

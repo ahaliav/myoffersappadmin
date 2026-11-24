@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { Save } from 'lucide-react';
+import { Save, ArrowUp, Trash2, Plus } from 'lucide-react';
 import { agentSettingsApi, type AgentSettings as Data } from '../api/agentSettingsApi';
 import CustomStates from './CustomStates';
 
@@ -32,6 +32,16 @@ const LIST_NAMES: Record<string, string> = {
   client_agent_types: 'סוגי לקוח',
 };
 
+/** AI-25: Today smart's ready questions ("שאלות נפוצות"), one list per screen (general_chips.{screen}). */
+const CHIP_SCREENS: Record<string, string> = {
+  home: 'בית', customers: 'לקוחות', offers: 'הצעות', data: 'נתונים', revenues: 'הכנסות', calendar: 'יומן',
+};
+const chipList = (screen: string) => `general_chips.${screen}`;
+const LIST_TITLES: Record<string, string> = {
+  ...LIST_NAMES,
+  ...Object.fromEntries(Object.entries(CHIP_SCREENS).map(([s, name]) => [chipList(s), `Today smart · שאלות נפוצות · ${name}`])),
+};
+
 /**
  * E12 "הגדרות הסוכן": every number, text and list of the customer agent. Saving one applies at once (no deploy) and is kept in
  * the history. The prompts themselves are edited in "כתיבה עם AI" (family client_agent).
@@ -43,6 +53,7 @@ export default function AgentSettings() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
 
+  const [newItem, setNewItem] = useState<Record<string, { itemKey: string; label: string; first: boolean }>>({});
   const load = () => agentSettingsApi.get().then(setData).catch(() => setError('לא הצלחתי לטעון'));
   useEffect(() => { void load(); }, []);
 
@@ -112,27 +123,65 @@ export default function AgentSettings() {
         );
       })}
 
-      {tab === 'lists' && Object.keys(LIST_NAMES).map((listKey) => (
-        <div key={listKey}>
-          <h3 style={{ margin: '1rem 0 0.5rem', fontSize: '1rem' }}>{LIST_NAMES[listKey]}</h3>
-          {data.lists.filter((l) => l.listKey === listKey).map((l) => {
-            const id = `l:${l.listKey}.${l.itemKey}`;
-            const value = drafts[id] ?? l.label;
-            return (
-              <Card key={id}>
+      {tab === 'lists' && Object.keys(LIST_TITLES).map((listKey) => {
+        const items = data.lists.filter((l) => l.listKey === listKey).sort((a, b) => a.sortOrder - b.sortOrder);
+        const isChips = listKey.startsWith('general_chips.');
+        const add = newItem[listKey] ?? { itemKey: '', label: '', first: false };
+        return (
+          <div key={listKey}>
+            <h3 style={{ margin: '1rem 0 0.5rem', fontSize: '1rem' }}>{LIST_TITLES[listKey]}</h3>
+            {isChips && items.length === 0 && <Muted>אין שורות: המסך מראה את רשימת ברירת המחדל של הקוד. שורה ראשונה שתוסיפו מחליפה אותה.</Muted>}
+            {items.map((l, index) => {
+              const id = `l:${l.listKey}.${l.itemKey}`;
+              const value = drafts[id] ?? l.label;
+              return (
+                <Card key={id}>
+                  <Row>
+                    <Key>{l.itemKey}</Key>
+                    <Area aria-label={id} rows={1} value={value} onChange={(e) => setDrafts((d) => ({ ...d, [id]: e.target.value }))} />
+                    <label><input type="checkbox" checked={l.isActive} onChange={(e) => void save(id, () => agentSettingsApi.setListItem(l.listKey, l.itemKey, value, e.target.checked))} /> פעיל</label>
+                    <Btn type="button" disabled={value === l.label || saving === id} onClick={() => void save(id, () => agentSettingsApi.setListItem(l.listKey, l.itemKey, value, l.isActive))}>
+                      <Save size={14} /> שמור
+                    </Btn>
+                    <Btn type="button" aria-label={`הזז למעלה ${l.itemKey}`} disabled={index === 0 || saving === id} onClick={() => {
+                      const keys = items.map((i) => i.itemKey);
+                      [keys[index - 1], keys[index]] = [keys[index], keys[index - 1]];
+                      void save(id, () => agentSettingsApi.orderList(listKey, keys));
+                    }}>
+                      <ArrowUp size={14} />
+                    </Btn>
+                    {isChips && (
+                      <Btn type="button" aria-label={`מחק ${l.itemKey}`} disabled={saving === id} onClick={() => {
+                        if (window.confirm(`להוריד את "${l.label}" מהמסך?`)) void save(id, () => agentSettingsApi.removeListItem(listKey, l.itemKey));
+                      }}>
+                        <Trash2 size={14} />
+                      </Btn>
+                    )}
+                  </Row>
+                </Card>
+              );
+            })}
+            {isChips && (
+              <Card>
                 <Row>
-                  <Key>{l.itemKey}</Key>
-                  <Area aria-label={id} rows={1} value={value} onChange={(e) => setDrafts((d) => ({ ...d, [id]: e.target.value }))} />
-                  <label><input type="checkbox" checked={l.isActive} onChange={(e) => void save(id, () => agentSettingsApi.setListItem(l.listKey, l.itemKey, value, e.target.checked))} /> פעיל</label>
-                  <Btn type="button" disabled={value === l.label || saving === id} onClick={() => void save(id, () => agentSettingsApi.setListItem(l.listKey, l.itemKey, value, l.isActive))}>
-                    <Save size={14} /> שמור
+                  <Input dir="ltr" aria-label={`מפתח שאלה חדשה ${listKey}`} placeholder="hot / metric:close_rate / prefill:…" value={add.itemKey}
+                    onChange={(e) => setNewItem((n) => ({ ...n, [listKey]: { ...add, itemKey: e.target.value } }))} />
+                  <Area aria-label={`נוסח שאלה חדשה ${listKey}`} rows={1} placeholder="הנוסח שהמשתמש רואה" value={add.label}
+                    onChange={(e) => setNewItem((n) => ({ ...n, [listKey]: { ...add, label: e.target.value } }))} />
+                  <label><input type="checkbox" checked={add.first} onChange={(e) => setNewItem((n) => ({ ...n, [listKey]: { ...add, first: e.target.checked } }))} /> בראש הרשימה</label>
+                  <Btn type="button" disabled={!add.itemKey.trim() || !add.label.trim() || saving === 'add:' + listKey} onClick={() => void save('add:' + listKey, async () => {
+                    await agentSettingsApi.addListItem(listKey, { itemKey: add.itemKey.trim(), label: add.label.trim(), position: add.first ? 1 : undefined });
+                    setNewItem((n) => ({ ...n, [listKey]: { itemKey: '', label: '', first: false } }));
+                  })}>
+                    <Plus size={14} /> הוסף שאלה
                   </Btn>
                 </Row>
+                <Muted>מפתח של שאלה קיימת (call_back, unpaid, hot, leads…), או list:… / metric:… / question:… / prefill:טקסט. מופיע מיד ב-Today smart.</Muted>
               </Card>
-            );
-          })}
-        </div>
-      ))}
+            )}
+          </div>
+        );
+      })}
 
       {tab === 'states' && <CustomStates />}
 

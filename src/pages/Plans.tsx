@@ -143,6 +143,7 @@ function norm(row: Record<string, unknown>): PlanDto {
     features: (row.features ?? row.Features ?? null) as string | null,
     aiMonthlyRequestLimit: (row.aiMonthlyRequestLimit ?? row.AiMonthlyRequestLimit ?? null) as number | null,
     aiMonthlyTokenLimit: (row.aiMonthlyTokenLimit ?? row.AiMonthlyTokenLimit ?? null) as number | null,
+    advisorDailyTurns: (row.advisorDailyTurns ?? row.AdvisorDailyTurns ?? null) as number | null,
     createdAt: (row.createdAt ?? row.CreatedAt ?? '') as string,
     updatedAt: (row.updatedAt ?? row.UpdatedAt ?? '') as string,
   };
@@ -161,6 +162,7 @@ const emptyForm: CreatePlanRequest = {
   features: '',
   aiMonthlyRequestLimit: null,
   aiMonthlyTokenLimit: null,
+  advisorDailyTurns: null,
 };
 
 export default function Plans() {
@@ -219,6 +221,10 @@ export default function Plans() {
           addForm.aiMonthlyTokenLimit != null && !Number.isNaN(Number(addForm.aiMonthlyTokenLimit))
             ? Number(addForm.aiMonthlyTokenLimit)
             : null,
+        advisorDailyTurns:
+          addForm.advisorDailyTurns != null && !Number.isNaN(Number(addForm.advisorDailyTurns))
+            ? Number(addForm.advisorDailyTurns)
+            : null,
       });
       await load();
       setAddForm(emptyForm);
@@ -247,6 +253,7 @@ export default function Plans() {
         features: p.features ?? '',
         aiMonthlyRequestLimit: p.aiMonthlyRequestLimit ?? null,
         aiMonthlyTokenLimit: p.aiMonthlyTokenLimit ?? null,
+        advisorDailyTurns: p.advisorDailyTurns ?? null,
       },
     }));
   };
@@ -276,6 +283,10 @@ export default function Plans() {
         aiMonthlyTokenLimit:
           form.aiMonthlyTokenLimit != null && !Number.isNaN(Number(form.aiMonthlyTokenLimit))
             ? Number(form.aiMonthlyTokenLimit)
+            : null,
+        advisorDailyTurns:
+          form.advisorDailyTurns != null && !Number.isNaN(Number(form.advisorDailyTurns))
+            ? Number(form.advisorDailyTurns)
             : null,
       });
       await load();
@@ -435,6 +446,16 @@ export default function Plans() {
             </div>
             <FlexRow style={{ gap: '1rem', flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 160px' }}>
+                <Label>תורות ליועץ העסקי ביום (ריק = ברירת מחדל)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  aria-label="תורות ליועץ ביום (חדש)"
+                  value={addForm.advisorDailyTurns ?? ''}
+                  onChange={(e) => setAddField('advisorDailyTurns', e.target.value === '' ? null : parseInt(e.target.value, 10))}
+                />
+              </div>
+              <div style={{ flex: '1 1 160px' }}>
                 <Label>מכסת בקשות AI לחודש (ריק = ברירת מחדל)</Label>
                 <Input
                   type="number"
@@ -591,6 +612,16 @@ export default function Plans() {
                         />
                       </div>
                       <FlexRow style={{ gap: '1rem', flexWrap: 'wrap' }}>
+                        <div style={{ flex: '1 1 160px' }}>
+                          <Label>תורות ליועץ העסקי ביום (ריק = ברירת מחדל)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            aria-label="תורות ליועץ ביום"
+                            value={form.advisorDailyTurns ?? ''}
+                            onChange={(e) => setEditField(plan.id, 'advisorDailyTurns', e.target.value === '' ? null : parseInt(e.target.value, 10))}
+                          />
+                        </div>
                         <div style={{ flex: '1 1 160px' }}>
                           <Label>מכסת בקשות AI לחודש (ריק = ברירת מחדל)</Label>
                           <Input

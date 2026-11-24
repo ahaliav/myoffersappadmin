@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Plus, Trash2, Save, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
-import { aiArchitectureApi, type DataVariableDto, type DataVariableCreateDto } from '../api/adminApi';
+import { aiArchitectureApi, type DataVariableDto, type DataVariableCreateDto, type DataVariablePreviewRow } from '../api/adminApi';
+
+/** The server's message (a query that does not run is refused with the database's words), else the request's. */
+const errorText = (e: unknown): string => {
+  const data = (e as { response?: { data?: { message?: string } } })?.response?.data;
+  return data?.message ?? (e instanceof Error ? e.message : 'שגיאה');
+};
 
 const PageWrap = styled.div`direction: rtl; text-align: right;`;
 const Title = styled.h1`margin: 0 0 0.5rem; font-size: 1.75rem; font-weight: 700; color: #0f172a;`;
@@ -69,6 +75,9 @@ export default function DataVariables() {
   const [deleting, setDeleting] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [previewOffer, setPreviewOffer] = useState('');
+  const [preview, setPreview] = useState<DataVariablePreviewRow[] | null>(null);
+  const [previewing, setPreviewing] = useState(false);
   const [newVar, setNewVar] = useState<DataVariableCreateDto>({ key: '', name: '', description: '', sqlQuery: 'SELECT ... FROM ... WHERE user_id = @user_id', resultFormat: 'json' });
 
   const load = async () => {
@@ -92,7 +101,7 @@ export default function DataVariables() {
     const e = editing[id]; if (!e) return;
     setSaving(id);
     try { await aiArchitectureApi.updateDataVariable(id, e); await load(); setEditing((p) => { const n = { ...p }; delete n[id]; return n; }); }
-    catch (err: unknown) { setError(err instanceof Error ? err.message : 'שגיאה'); }
+    catch (err: unknown) { setError(errorText(err)); }
     finally { setSaving(null); }
   };
 
@@ -108,8 +117,17 @@ export default function DataVariables() {
     if (!newVar.key || !newVar.name || !newVar.sqlQuery) { setError('מפתח, שם, ו-SQL הם שדות חובה'); return; }
     setCreating(true);
     try { await aiArchitectureApi.createDataVariable(newVar); await load(); setShowCreate(false); setNewVar({ key: '', name: '', description: '', sqlQuery: 'SELECT ... FROM ... WHERE user_id = @user_id', resultFormat: 'json' }); }
-    catch (err: unknown) { setError(err instanceof Error ? err.message : 'שגיאה'); }
+    catch (err: unknown) { setError(errorText(err)); }
     finally { setCreating(false); }
+  };
+
+  const runPreview = async () => {
+    const id = Number(previewOffer);
+    if (!Number.isInteger(id) || id <= 0) { setError('מספר הצעה'); return; }
+    setPreviewing(true); setError(null);
+    try { setPreview((await aiArchitectureApi.previewDataVariables(id)).data); }
+    catch (err: unknown) { setPreview(null); setError(errorText(err)); }
+    finally { setPreviewing(false); }
   };
 
   return (
@@ -118,8 +136,31 @@ export default function DataVariables() {
       <Desc>
         כל משתנה מגדיר SQL query שמופעל לפני שליחת הפרומפט ל-AI.
         התוצאות מוזרקות לתבנית בצורת <code>{'{{placeholder_key}}'}</code>.
-        השתמש ב-<code>@user_id</code> ב-SQL לסינון לפי משתמש.
+        השתמש ב-<code>@user_id</code> ב-SQL לסינון לפי משתמש (חובה), וב-<code>@offer_id</code> / <code>@customer_id</code> להצעה וללקוח
+        (NULL כשאין). כל שאילתה רצה לקריאה בלבד ועם הגבלת זמן; שאילתה שלא רצה לא נשמרת. פירוט: DATA_VARIABLES.md.
       </Desc>
+
+      <CreateForm style={{ background: '#f8fafc', borderColor: '#cbd5e1' }}>
+        <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>תצוגה מקדימה על הצעה אמיתית</div>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+          <Input style={{ maxWidth: 180 }} value={previewOffer} onChange={(e) => setPreviewOffer(e.target.value)} placeholder="מספר הצעה" inputMode="numeric" />
+          <Btn onClick={runPreview} disabled={previewing}>הצג ערכים</Btn>
+        </div>
+        {preview && (
+          <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+            <tbody>
+              {preview.map((r) => (
+                <tr key={r.key} style={{ borderTop: '1px solid #e2e8f0' }}>
+                  <td style={{ padding: '0.35rem', fontWeight: 600 }}>{r.name} <code style={{ color: '#64748b' }}>{`{{${r.key}}}`}</code></td>
+                  <td style={{ padding: '0.35rem', color: r.missing ? '#dc2626' : '#0f172a', whiteSpace: 'pre-wrap' }}>
+                    {r.display}{r.error && <div style={{ color: '#b45309', fontSize: '0.75rem', direction: 'ltr' }}>{r.error}</div>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </CreateForm>
 
       {error && <p style={{ color: '#dc2626', marginBottom: '1rem' }}>{error}</p>}
 

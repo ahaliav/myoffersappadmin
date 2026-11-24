@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Plus, Save, X } from 'lucide-react';
+import TradeTermsSection from './TradeTermsSection';
+import TagQuestionsSection from './TagQuestionsSection';
 import {
   chatTradeQuestionsApi, quoteChatSettingsApi, type QuoteChatSettings, type TradeQuestion, type TradeQuestionInput,
 } from '../api/chatTradeQuestionsApi';
@@ -38,6 +40,26 @@ const SWITCHES: Record<string, string> = {
   qc_edit_verbatim_phrases: 'ביטויים ל"תרשום בדיוק" (מופרדים בפסיקים)',
   qc_free_chat: 'שיחה חופשית: ה-AI שואל רק מה שחסר + "הכן טיוטה" (off / on / users:12,34)',
   qc_max_questions: 'כמה שאלות ה-AI שואל בהצעה אחת (0–10)',
+  qc_trade_terms_table: 'מילים מוכרות ל-AI ({{trade_terms}}): רשימת המילים לפי מקצוע (on / off)',
+  qc_trade_terms_user: 'מילים מוכרות ל-AI ({{trade_terms}}): המילון של המשתמש — שמות מהקטלוג, קבוצות ומילים שחוזרות בהצעות שלו (on / off)',
+  qc_trade_terms_max: 'מילים מוכרות ל-AI: כמה מילים לכל היותר (0–500)',
+  qc_files: 'קבצים בצ׳אט: ה-AI קורא PDF, Word, טקסט ותמונה שמצורפים להודעה (on / off)',
+  qc_file_types: 'סוגי הקבצים שנקראים (מופרדים בפסיק: pdf, docx, txt, xlsx, jpg, jpeg, png, webp)',
+  qc_file_max_mb: 'גודל קובץ מקסימלי ב-MB (1–25)',
+  qc_file_max_chars: 'כמה תווים מהקובץ נכנסים להודעה (500–20000)',
+  qc_file_instruction_words: 'שורה בקובץ עם אחת מהמילים האלה לא נשלחת ל-AI (מופרדות בפסיק). הוראת הקריאה והמודל שקורא: ההוראה quote_chat_file בהוראות הכתיבה',
+  qc_draft_mode: 'מתי מוצגת ההצעה בשיחה החופשית: on_ready = רק כשהיא מוכנה (לקוח, עבודות ומחירים, בלי שאלה פתוחה) · every_turn = אחרי כל הודעה (כמו לפני AI-01)',
+  qc_changed_line: 'שורת "מה שיניתי" אחרי כל תשובה בצ׳אט (on / off)',
+  qc_suggestions: 'הצעות של ה-AI להערות (סייג, אחריות, לא כולל) — נכנסות רק בלחיצה. צריך גם את ההוראה quote_chat_suggest פעילה (on / off)',
+  qc_suggestions_max: 'כמה הצעות של ה-AI לכל היותר (0–5)',
+  qc_place_findings: 'ממצאים מהביקור הולכים ל: opening = פסקת הפתיחה · notes = הערות · off = לא נכנסים',
+  qc_place_excluded: '"לא כולל…" הולך ל: notes = הערות ההצעה · item = מתחת לפריט',
+  qc_place_warranty: 'אחריות הולכת ל: notes = הערות ההצעה · item = מתחת לפריט',
+  qc_addon_per_unit: '"כל דוד 250 בתוספת" נרשם כשורת טקסט מחוץ לסה"כ (on / off)',
+  qc_examples: 'הצעות קודמות של המשתמש כדוגמאות כתיבה ל-AI ({{past_examples}}) (off / on / users:12,34)',
+  qc_examples_count: 'כמה הצעות קודמות כדוגמה (0–3)',
+  qc_examples_pick: 'אילו הצעות קודמות: similar = הכי דומות להודעה · latest = האחרונות',
+  qc_two_step: 'הפריטים בשני שלבים: קודם ה-AI כותב הצעה כטקסט (ההוראה quote_draft_text), אחר כך מסדר בטבלה (extract_work_items). המודל של כל שלב — במודל של ההוראה שלו (off = שלב אחד כמו היום / on / users:12,34)',
 };
 
 /** The chat's switches: each change applies at once and is kept in the history. */
@@ -73,7 +95,7 @@ function Switches() {
         {data.settings.map((s) => (
           <Label key={s.key}>
             {SWITCHES[s.key] ?? s.key}
-            <Input dir={s.key === 'qc_guard_filler_words' || s.key === 'qc_edit_verbatim_phrases' ? 'rtl' : 'ltr'} value={values[s.key] ?? ''} onChange={(e) => setValues((p) => ({ ...p, [s.key]: e.target.value }))} aria-label={s.key} />
+            <Input dir={s.key === 'qc_guard_filler_words' || s.key === 'qc_edit_verbatim_phrases' || s.key === 'qc_file_instruction_words' ? 'rtl' : 'ltr'} value={values[s.key] ?? ''} onChange={(e) => setValues((p) => ({ ...p, [s.key]: e.target.value }))} aria-label={s.key} />
             <Row style={{ marginTop: 0 }}>
               {s.updatedBy && <Muted>{s.updatedBy}</Muted>}
               <Btn type="button" disabled={saving === s.key || values[s.key] === s.value} onClick={() => void save(s.key)}>שמירה</Btn>
@@ -148,6 +170,8 @@ export default function ChatTradeQuestions() {
         והתשובה נכנסת להערה של הפריט. נשאלות רק שאלות חובה ופעילות, ורק כשההגדרה qc_trade_questions דולקת.
       </Desc>
       <Switches />
+      <TagQuestionsSection />
+      <TradeTermsSection />
       {error && <ErrorText role="alert">{error}</ErrorText>}
 
       {draft ? (

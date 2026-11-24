@@ -56,6 +56,17 @@ export interface WritingPreviewRequest {
   useDrafts: boolean;
   /** Tool 4 (8.11): also call the AI once ("נסה עכשיו"). */
   run?: boolean;
+  /** AI-24: the brochure's "מה לשנות?" (adds brochure_shared.mode_refine). */
+  refine?: boolean;
+}
+
+/** AI-24 "הוסף בלוק": the layers an admin may add; the block starts as a draft and counts once published. */
+export const ADDABLE_LAYERS = ['identity', 'base', 'example', 'output', 'style', 'length', 'type', 'mode'] as const;
+export interface NewBlockRequest {
+  layer: (typeof ADDABLE_LAYERS)[number];
+  /** optional second block of a layer: Latin letters, digits, _ (e.g. negative_2) */
+  variant?: string;
+  text: string;
 }
 
 export interface WritingPreview {
@@ -88,9 +99,31 @@ export const aiWritingAdminApi = {
   /** Fix 1 (8.11): model, temperature and output length for this one prompt. */
   setSettings: (featureKey: string, body: { model: string | null; temperature: number | null; maxTokens: number | null }) =>
     axiosClient.put(`/api/admin/ai-writing/features/${encodeURIComponent(featureKey)}/settings`, body),
+  addBlock: (featureKey: string, body: NewBlockRequest) =>
+    axiosClient.post<WritingBlock>(`/api/admin/ai-writing/features/${encodeURIComponent(featureKey)}/blocks`, body),
   preview: (featureKey: string, body: WritingPreviewRequest) =>
     axiosClient.post<WritingPreview>(`/api/admin/ai-writing/features/${encodeURIComponent(featureKey)}/preview`, body),
+  /** AI-25 "מחק בלוק": switched off (the AI stops getting it at once); "הוסף בלוק" with the same layer brings it back. */
+  deleteBlock: (featureKey: string, blockId: number) =>
+    axiosClient.delete(`/api/admin/ai-writing/features/${encodeURIComponent(featureKey)}/blocks/${blockId}`),
+  testSet: (featureKey: string) => axiosClient.get<TestSet>(`/api/admin/ai-writing/features/${encodeURIComponent(featureKey)}/test-set`),
+  addTestCase: (featureKey: string, body: { title: string; variables: Record<string, string> }) =>
+    axiosClient.post<TestCase>(`/api/admin/ai-writing/features/${encodeURIComponent(featureKey)}/test-set/cases`, body),
+  deleteTestCase: (featureKey: string, id: number) =>
+    axiosClient.delete(`/api/admin/ai-writing/features/${encodeURIComponent(featureKey)}/test-set/cases/${id}`),
+  orderTestCases: (featureKey: string, ids: number[]) =>
+    axiosClient.put(`/api/admin/ai-writing/features/${encodeURIComponent(featureKey)}/test-set/order`, { ids }),
+  runTestSet: (featureKey: string, body: { repeats: number; useDrafts: boolean }) =>
+    axiosClient.post<TestRunResult>(`/api/admin/ai-writing/features/${encodeURIComponent(featureKey)}/test-set/run`, body),
 };
+
+/** AI-25 "בדיקות שמורות": a prompt's fixed messages, run 1–3 times each; every run kept and compared with the one before. */
+export interface TestCase { id: number; title: string; variables: Record<string, string | null>; sortOrder: number }
+export interface TestCaseResult { caseId: number; title: string; outputs: (string | null)[]; errors: (string | null)[] }
+export interface TestRun { id: number; createdAt: string; createdBy: string | null; useDrafts: boolean; repeats: number; fingerprint: string; results: TestCaseResult[] }
+export interface TestCompare { caseId: number; title: string; changed: boolean; stable: boolean; previousStable: boolean | null; new: boolean }
+export interface TestSet { cases: TestCase[]; runs: TestRun[]; maxCases: number; maxRepeats: number }
+export interface TestRunResult { run: TestRun; previous: TestRun | null; comparison: TestCompare[] }
 
 /** Fix 7 (8.11): the saved AI answers (customer card analyses, data page answers), counted and cleared on demand. */
 export interface AiCacheCounts {

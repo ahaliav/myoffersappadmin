@@ -143,6 +143,8 @@ export interface PlanDto {
   features?: string | null;
   aiMonthlyRequestLimit?: number | null;
   aiMonthlyTokenLimit?: number | null;
+  /** B46: the business advisor's daily turns (null = ad_daily_turns_default). */
+  advisorDailyTurns?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -160,6 +162,8 @@ export interface CreatePlanRequest {
   features?: string | null;
   aiMonthlyRequestLimit?: number | null;
   aiMonthlyTokenLimit?: number | null;
+  /** B46: the business advisor's daily turns (null = ad_daily_turns_default). */
+  advisorDailyTurns?: number | null;
 }
 
 export interface AdminAiUsageRowDto {
@@ -490,6 +494,15 @@ export interface PromptTestResponse {
   promptKey: string;
 }
 
+export interface DataVariablePreviewRow {
+  key: string;
+  name: string;
+  value: string | null;
+  missing: boolean;
+  display: string;
+  error: string | null;
+}
+
 export const aiArchitectureApi = {
   // Data Variables
   getDataVariables: () =>
@@ -504,6 +517,9 @@ export const aiArchitectureApi = {
     axiosClient.put(`/api/admin/data-variables/${id}`, dto),
   deleteDataVariable: (id: number) =>
     axiosClient.delete(`/api/admin/data-variables/${id}`),
+  /** A42: every active variable on a real quote; a missing one carries the admin's "חסר: …" text in display. */
+  previewDataVariables: (offerId: number) =>
+    axiosClient.get<DataVariablePreviewRow[]>('/api/admin/data-variables/preview', { params: { offerId } }),
 
   // Prompt Versions
   getPromptVersions: (promptId: number) =>

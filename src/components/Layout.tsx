@@ -18,7 +18,9 @@ import {
   SlidersHorizontal,
   PenLine,
   ListChecks,
+  Compass,
   SearchCode,
+  ShieldCheck,
   MessageCircle,
   KeyRound,
 } from 'lucide-react';
@@ -175,6 +177,10 @@ export default function Layout() {
             <Database size={20} />
             משתני נתונים
           </NavItem>
+          <NavItem to="/advisor">
+            <Compass size={20} />
+            היועץ העסקי
+          </NavItem>
           <NavItem to="/chat-trade-questions">
             <ListChecks size={20} />
             צ'אט הצעה (A1)
@@ -198,6 +204,10 @@ export default function Layout() {
           <NavItem to="/ai-traces">
             <SearchCode size={20} />
             מה קרה בקריאה
+          </NavItem>
+          <NavItem to="/ai-guards">
+            <ShieldCheck size={20} />
+            שומרים
           </NavItem>
           <NavItem to="/whatsapp">
             <MessageCircle size={20} />

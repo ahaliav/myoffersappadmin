@@ -10,12 +10,19 @@ export interface DataQuestionRow {
   instruction: string; exampleGood: string | null; exampleBad: string | null; isActive: boolean;
 }
 export interface InsightRuleRow { key: string; section: string; priority: number; template: string; questionKey: string | null; isActive: boolean }
+/** A11: one of Today smart's recommendation rules ("המלצות בשבילך"). placeholders = the {{…}} code fills for it. */
+export interface RecRuleRow {
+  key: string; title: string; template: string; templateOne: string | null; cta: string | null; target: string | null;
+  priority: number; isActive: boolean; placeholders: string[];
+}
+export type RecRuleEdit = Pick<RecRuleRow, 'title' | 'template' | 'templateOne' | 'cta' | 'target' | 'priority' | 'isActive'>;
 export interface DataHistory { key: string; value: string; changedAt: string; changedBy: string | null; canRestore: boolean }
 
 export interface DataSettings {
   settings: DataSetting[];
   questions: DataQuestionRow[];
   rules: InsightRuleRow[];
+  recRules: RecRuleRow[];
   history: DataHistory[];
 }
 
@@ -31,4 +38,5 @@ export const dataSettingsApi = {
   setQuestion: (key: string, q: QuestionEdit) => axiosClient.put(`/api/admin/data-settings/questions/${encodeURIComponent(key)}`, q),
   setRule: (key: string, template: string, priority: number, isActive: boolean) =>
     axiosClient.put(`/api/admin/data-settings/rules/${encodeURIComponent(key)}`, { template, priority, isActive }),
+  setRecRule: (key: string, r: RecRuleEdit) => axiosClient.put(`/api/admin/data-settings/rec-rules/${encodeURIComponent(key)}`, r),
 };

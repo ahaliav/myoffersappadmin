@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { RefreshCw, Save, Upload, X, Eye, Lock, Power, History } from 'lucide-react';
-import { aiWritingAdminApi, aiCacheAdminApi, type WritingBlock, type WritingFeature, type WritingPreview, type WritingVersion } from '../api/aiWritingAdminApi';
-import { aiSettingsApi, apiErrorMessage, type AiModel } from '../api/aiSettingsApi';
+import { RefreshCw, Save, Upload, X, Eye, Lock, Power, History, Plus, Trash2, Play, ArrowUp } from 'lucide-react';
+import { aiWritingAdminApi, aiCacheAdminApi, ADDABLE_LAYERS, type TestRunResult, type TestSet, type WritingBlock, type WritingFeature, type WritingPreview, type WritingVersion } from '../api/aiWritingAdminApi';
+import { apiErrorMessage } from '../api/aiSettingsApi';
+import ModelSelect from '../components/ModelSelect';
 import AiEvalCard, { RouterEvalCard } from '../components/AiEvalCard';
 import { BehaviourCard, TextsListsCard } from '../components/AiBehaviourCards';
 
@@ -217,6 +218,7 @@ function FeatureEditor({ feature, onChanged, onToggle }: { feature: WritingFeatu
                 {!b.fromBrief && <Tag title="נכתב בפיתוח, לא מבריף">לא מהבריף</Tag>}
                 {b.outputLocked && <Tag><Lock size={12} /> נעול</Tag>}
                 <small>פורסם {formatDate(b.publishedAt)}{b.publishedBy ? ` · ${b.publishedBy}` : ''}</small>
+                {!b.outputLocked && <DeleteBlockButton featureKey={feature.key} block={b} onChanged={onChanged} />}
               </BlockHead>
               <BlockEditor block={b} onChanged={onChanged} />
             </BlockWrap>
@@ -224,8 +226,192 @@ function FeatureEditor({ feature, onChanged, onToggle }: { feature: WritingFeatu
         </Card>
       ))}
 
+      <AddBlockCard feature={feature} onChanged={onChanged} />
       <PreviewCard feature={feature} />
+      <TestSetCard feature={feature} />
     </div>
+  );
+}
+
+// AI-25 "מחק בלוק": the block is switched off (the AI stops getting it at once, its text stays in the history).
+function DeleteBlockButton({ featureKey, block, onChanged }: { featureKey: string; block: WritingBlock; onChanged: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const remove = async () => {
+    if (!window.confirm(`למחוק את הבלוק ${block.key}? ה-AI יפסיק לקבל אותו מיד. "הוסף בלוק" עם אותה שכבה מחזיר אותו.`)) return;
+    setBusy(true);
+    try {
+      await aiWritingAdminApi.deleteBlock(featureKey, block.id);
+      await onChanged();
+    } catch (e) {
+      window.alert(apiErrorMessage(e, 'מחיקת הבלוק נכשלה'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Btn $variant="secondary" disabled={busy} onClick={() => void remove()} style={{ marginInlineStart: 'auto' }} aria-label={`מחק בלוק ${block.key}`}>
+      <Trash2 size={14} /> מחק בלוק
+    </Btn>
+  );
+}
+
+// AI-25 "בדיקות שמורות": the prompt's fixed messages, run 1–3 times each with a click (real AI calls), and the run
+// compared with the one before: which answers changed, which aren't stable.
+function TestSetCard({ feature }: { feature: WritingFeature }) {
+  const [set, setSet] = useState<TestSet | null>(null);
+  const [title, setTitle] = useState('');
+  const [variable, setVariable] = useState('user_text');
+  const [value, setValue] = useState('');
+  const [repeats, setRepeats] = useState(3);
+  const [useDrafts, setUseDrafts] = useState(false);
+  const [result, setResult] = useState<TestRunResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setSet((await aiWritingAdminApi.testSet(feature.key)).data);
+    } catch (e) {
+      setMsg(apiErrorMessage(e, 'טעינת הסט נכשלה'));
+    }
+  }, [feature.key]);
+  useEffect(() => { setResult(null); void load(); }, [load]);
+
+  const act = async (fn: () => Promise<unknown>, failed: string) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await fn();
+      await load();
+    } catch (e) {
+      setMsg(apiErrorMessage(e, failed));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const add = () => act(async () => {
+    await aiWritingAdminApi.addTestCase(feature.key, { title: title.trim(), variables: { [variable.trim()]: value } });
+    setTitle('');
+    setValue('');
+  }, 'הוספת ההודעה נכשלה');
+
+  const up = (index: number) => act(async () => {
+    const ids = set!.cases.map((c) => c.id);
+    [ids[index - 1], ids[index]] = [ids[index], ids[index - 1]];
+    await aiWritingAdminApi.orderTestCases(feature.key, ids);
+  }, 'שינוי הסדר נכשל');
+
+  const run = () => act(async () => {
+    setResult((await aiWritingAdminApi.runTestSet(feature.key, { repeats, useDrafts })).data);
+  }, 'ההרצה נכשלה');
+
+  const compareOf = (caseId: number) => result?.comparison.find((c) => c.caseId === caseId);
+  const previousOf = (caseId: number) => result?.previous?.results.find((r) => r.caseId === caseId);
+
+  return (
+    <Card>
+      <CardTitle><Play size={18} /> בדיקות שמורות</CardTitle>
+      <Muted>
+        סט קבוע של הודעות אמיתיות להוראה הזו. כל הרצה נשמרת ומושווית להרצה הקודמת: האם התשובה השתנתה, והאם היא יציבה
+        (אותה תשובה בכל ההרצות). כל הרצה היא קריאה אמיתית ל-AI.
+      </Muted>
+      {set && set.cases.length === 0 && <Muted>אין עדיין הודעות בסט.</Muted>}
+      {set?.cases.map((c, i) => {
+        const cmp = compareOf(c.id);
+        const now = result?.run.results.find((r) => r.caseId === c.id);
+        const before = previousOf(c.id);
+        return (
+          <BlockWrap key={c.id}>
+            <BlockHead>
+              <strong>{c.title}</strong>
+              <Code>{Object.keys(c.variables).join(', ')}</Code>
+              {cmp && <Tag>{cmp.new ? 'חדש' : cmp.changed ? 'השתנה' : 'כמו קודם'} · {cmp.stable ? 'יציב' : 'לא יציב'}</Tag>}
+              <span style={{ marginInlineStart: 'auto', display: 'flex', gap: 6 }}>
+                <Btn $variant="secondary" disabled={busy || i === 0} onClick={() => void up(i)} aria-label={`הזז למעלה ${c.title}`}><ArrowUp size={14} /></Btn>
+                <Btn $variant="secondary" disabled={busy} onClick={() => void act(() => aiWritingAdminApi.deleteTestCase(feature.key, c.id), 'המחיקה נכשלה')} aria-label={`מחק הודעה ${c.title}`}><Trash2 size={14} /></Btn>
+              </span>
+            </BlockHead>
+            {now && (
+              <Meta style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                {now.outputs.map((o, k) => <span key={k} dir="auto">הרצה {k + 1}: {o ?? now.errors[k] ?? '—'}</span>)}
+                {before && <span dir="auto" style={{ opacity: 0.7 }}>בהרצה הקודמת: {before.outputs.join(' | ')}</span>}
+              </Meta>
+            )}
+          </BlockWrap>
+        );
+      })}
+      <Meta>
+        <label>שם{' '}<input value={title} onChange={(e) => setTitle(e.target.value)} style={{ width: 140 }} /></label>
+        <label>משתנה{' '}<input dir="ltr" value={variable} onChange={(e) => setVariable(e.target.value)} style={{ width: 110 }} /></label>
+      </Meta>
+      <TextArea dir="auto" rows={3} value={value} onChange={(e) => setValue(e.target.value)} aria-label="ההודעה" />
+      <Actions>
+        <Btn $variant="secondary" disabled={busy || !title.trim() || !value.trim() || !variable.trim()} onClick={() => void add()}><Plus size={14} /> הוסף הודעה לסט</Btn>
+        <label>הרצות לכל הודעה{' '}
+          <select value={repeats} onChange={(e) => setRepeats(Number(e.target.value))}>
+            {Array.from({ length: set?.maxRepeats ?? 3 }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </label>
+        <label><input type="checkbox" checked={useDrafts} onChange={(e) => setUseDrafts(e.target.checked)} /> להריץ את הטיוטות</label>
+        <Btn disabled={busy || !set?.cases.length} onClick={() => void run()}><Play size={14} /> הרץ את הסט</Btn>
+      </Actions>
+      {result && (
+        <Muted>
+          הרצה #{result.run.id}{result.previous ? ` מול #${result.previous.id}` : ''}: {result.comparison.filter((c) => c.changed).length} השתנו,{' '}
+          {result.comparison.filter((c) => !c.stable).length} לא יציבות.{' '}
+          {result.previous && (result.previous.fingerprint === result.run.fingerprint ? 'אותו נוסח הוראה.' : 'נוסח ההוראה השתנה.')}
+        </Muted>
+      )}
+      {msg && <Banner $tone="bad">{msg}</Banner>}
+    </Card>
+  );
+}
+
+// AI-24: add a block (identity, base, example, output) without a developer. It is saved as a draft: it reaches the AI,
+// and counts for "הפעל", only after "פרסום" like any other edit.
+function AddBlockCard({ feature, onChanged }: { feature: WritingFeature; onChanged: () => Promise<void> }) {
+  const [layer, setLayer] = useState<(typeof ADDABLE_LAYERS)[number]>('identity');
+  const [variant, setVariant] = useState('');
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
+
+  const add = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const { data } = await aiWritingAdminApi.addBlock(feature.key, { layer, variant: variant.trim() || undefined, text });
+      setMsg({ tone: 'ok', text: `נוסף ${data.key} כטיוטה. פרסמו אותו כדי שייכנס להוראה.` });
+      setText('');
+      setVariant('');
+      await onChanged();
+    } catch (e) {
+      setMsg({ tone: 'bad', text: apiErrorMessage(e, 'הוספת הבלוק נכשלה') });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardTitle><Plus size={18} /> הוסף בלוק</CardTitle>
+      <Meta>
+        <label>שכבה{' '}
+          <select value={layer} onChange={(e) => setLayer(e.target.value as (typeof ADDABLE_LAYERS)[number])}>
+            {ADDABLE_LAYERS.map((l) => <option key={l} value={l}>{LAYER_LABELS[l] ?? l}</option>)}
+          </select>
+        </label>
+        <label>שם נוסף (לא חובה){' '}
+          <input dir="ltr" value={variant} onChange={(e) => setVariant(e.target.value)} placeholder="negative_2" style={{ width: 120 }} />
+        </label>
+      </Meta>
+      <TextArea dir="auto" rows={4} value={text} onChange={(e) => setText(e.target.value)} />
+      <Actions>
+        <Btn disabled={busy || !text.trim()} onClick={() => void add()}><Plus size={14} /> הוסף כטיוטה</Btn>
+      </Actions>
+      {msg && <Banner $tone={msg.tone}>{msg.text}</Banner>}
+    </Card>
   );
 }
 
@@ -313,22 +499,13 @@ function BlockEditor({ block, onChanged }: { block: WritingBlock; onChanged: () 
   );
 }
 
-let modelsCache: Promise<AiModel[]> | null = null;
-const textModels = () => {
-  modelsCache ??= aiSettingsApi.get().then((r) => r.data.models.filter((m) => m.enabled && m.capabilities.includes('text')))
-    .catch((e) => { modelsCache = null; throw e; });
-  return modelsCache;
-};
-
 /** Fix 1 (8.11): model, temperature and output length for this prompt only; empty = the group's setting. */
 function SettingsCard({ feature, onChanged }: { feature: WritingFeature; onChanged: () => Promise<void> }) {
-  const [models, setModels] = useState<AiModel[]>([]);
   const [model, setModel] = useState(feature.model ?? '');
   const [temperature, setTemperature] = useState(feature.temperature?.toString() ?? '');
   const [maxTokens, setMaxTokens] = useState(feature.maxTokens?.toString() ?? '');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
-  useEffect(() => { void textModels().then(setModels).catch(() => setModels([])); }, []);
 
   const dirty = model !== (feature.model ?? '') || temperature !== (feature.temperature?.toString() ?? '')
     || maxTokens !== (feature.maxTokens?.toString() ?? '');
@@ -357,11 +534,7 @@ function SettingsCard({ feature, onChanged }: { feature: WritingFeature; onChang
       <Muted>ריק = המודל של הקבוצה (הגדרות AI). שינוי כאן חל רק על {feature.key}.</Muted>
       <Meta>
         <label>מודל
-          <select value={model} onChange={(e) => setModel(e.target.value)} style={{ width: '13rem' }}>
-            <option value="">ברירת המחדל של הקבוצה</option>
-            {models.map((m) => <option key={m.modelKey} value={m.modelKey}>{m.displayName} ({m.modelKey})</option>)}
-            {model && !models.some((m) => m.modelKey === model) && <option value={model}>{model}</option>}
-          </select>
+          <ModelSelect value={model} onChange={setModel} emptyLabel="ברירת המחדל של הקבוצה" style={{ width: '13rem' }} />
         </label>
         <label title="0 = עקבי, 1 = יצירתי. מודלי Claude מתעלמים (ה-API לא מקבל טמפרטורה).">טמפרטורה
           <input type="number" min={0} max={2} step={0.1} value={temperature} placeholder="ברירת מחדל"
@@ -386,6 +559,10 @@ function PreviewCard({ feature }: { feature: WritingFeature }) {
   const [type, setType] = useState('');
   const [vars, setVars] = useState('quote_items=איטום גג, צביעת קירות\nuser_field=איטום וצבע\nuser_text=');
   const [useDrafts, setUseDrafts] = useState(true);
+  // AI-24: the brochure prompts — titles take the section as the type; content and titles have "מה לשנות?".
+  const isBrochureTitle = feature.key === 'brochure_title';
+  const canRefine = ['brochure_about', 'brochure_specialties', 'brochure_advantages', 'brochure_title'].includes(feature.key);
+  const [refine, setRefine] = useState(false);
   const [preview, setPreview] = useState<WritingPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -402,6 +579,7 @@ function PreviewCard({ feature }: { feature: WritingFeature }) {
     try {
       const { data } = await aiWritingAdminApi.preview(feature.key, {
         mode, style: style || null, length: length || null, type: type || null, variables, useDrafts, run: callAi,
+        refine: canRefine && refine,
       });
       setPreview(data);
     } catch (e) {
@@ -419,6 +597,8 @@ function PreviewCard({ feature }: { feature: WritingFeature }) {
         {feature.styleList && <label>סגנון <input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="standard" /></label>}
         {feature.lengthList && <label>אורך <input value={length} onChange={(e) => setLength(e.target.value)} placeholder="medium" /></label>}
         {feature.typeList && <label>סוג <input value={type} onChange={(e) => setType(e.target.value)} placeholder="payment" /></label>}
+        {isBrochureTitle && <label>סקשן <input value={type} onChange={(e) => setType(e.target.value)} placeholder="about" /></label>}
+        {canRefine && <label><input type="checkbox" checked={refine} onChange={(e) => setRefine(e.target.checked)} /> מה לשנות?</label>}
         <label><input type="checkbox" checked={useDrafts} onChange={(e) => setUseDrafts(e.target.checked)} /> כולל טיוטות</label>
       </Meta>
       <Muted>ערכים לדוגמה, שורה לכל משתנה: name=value</Muted>

@@ -142,7 +142,14 @@ interface GuardDetails {
   /** A3: the operations the edit prompt returned and what the code did with each. */
   edit?: { op: string; applied: boolean; reason: string; detail?: string | null }[];
   question?: string | null;
+  /** AI-11: the guards' own lines: which guard, its name on the guards screen, and what it took out or replaced. */
+  guard?: string;
+  label?: string | null;
+  details?: unknown;
 }
+
+/** AI-11: "השומר · <its name>" (the key when the row has no name). */
+const guardName = (promptKey: string | null) => `השומר${promptKey ? ` · ${promptKey}` : ''}`;
 
 function parse<T>(raw: string | null): T | null {
   if (!raw) return null;
@@ -181,8 +188,27 @@ function EditView({ details }: { details: GuardDetails }) {
   );
 }
 
-function GuardView({ details }: { details: GuardDetails }) {
+const GUARD_OUTCOMES: Record<string, string> = {
+  removed: 'הוריד', replaced: 'החליף את ההודעה', sent_back: 'החזיר ל-AI לתיקון', rejected: 'דחה את התשובה',
+  kept_after_retry: 'נשמר אחרי תיקון', stopped: 'עצר', kept_all: 'לא הוריד כלום',
+};
+
+function GuardView({ details, outcome }: { details: GuardDetails; outcome?: string | null }) {
   if (details.edit) return <EditView details={details} />;
+  if (details.guard) {
+    const inner = (details.details ?? {}) as Record<string, unknown>;
+    return (
+      <>
+        <H3>{details.label ?? details.guard}</H3>
+        <Meta>
+          <span>שומר: <code dir="ltr">{details.guard}</code></span>
+          {outcome && <span>מה עשה: {GUARD_OUTCOMES[outcome] ?? outcome}</span>}
+          {typeof inner.removed === 'number' && <span>הוריד: {inner.removed}</span>}
+        </Meta>
+        <Pre dir="ltr">{JSON.stringify(inner, null, 2)}</Pre>
+      </>
+    );
+  }
   const descriptions = details.descriptions ?? [];
   return (
     <>
@@ -238,7 +264,7 @@ function Detail({ id, onSelect, onDeleted, onClose }: { id: number; onSelect: (i
   return (
     <Card aria-label="פרטי הקריאה">
       <Row style={{ alignItems: 'center' }}>
-        <strong>{trace.kind === 'guard' ? 'השומר' : trace.promptKey ?? trace.operation} #{trace.id}</strong>
+        <strong>{trace.kind === 'guard' ? guardName(trace.promptKey) : trace.promptKey ?? trace.operation} #{trace.id}</strong>
         <Badge $tone={tone(trace.outcome)}>{OUTCOMES[trace.outcome] ?? trace.outcome}</Badge>
         <span style={{ flex: 1 }} />
         <Btn type="button" $danger onClick={() => void remove()}><Trash2 size={14} />מחיקה</Btn>
@@ -263,7 +289,7 @@ function Detail({ id, onSelect, onDeleted, onClose }: { id: number; onSelect: (i
           <Row>
             {related.map((r) => (
               <Btn key={r.id} type="button" $secondary onClick={() => onSelect(r.id)}>
-                {r.kind === 'guard' ? 'השומר' : r.promptKey ?? '—'}{r.attempt && r.attempt > 1 ? ` (ניסיון ${r.attempt})` : ''}
+                {r.kind === 'guard' ? guardName(r.promptKey) : r.promptKey ?? '—'}{r.attempt && r.attempt > 1 ? ` (ניסיון ${r.attempt})` : ''}
                 <Badge $tone={tone(r.outcome)}>{OUTCOMES[r.outcome] ?? r.outcome}</Badge>
               </Btn>
             ))}
@@ -271,7 +297,7 @@ function Detail({ id, onSelect, onDeleted, onClose }: { id: number; onSelect: (i
         </>
       )}
 
-      {guard && <GuardView details={guard} />}
+      {guard && <GuardView details={guard} outcome={trace.outcome} />}
 
       {request?.messages?.map((m, i) => (
         <div key={i}>
@@ -298,7 +324,11 @@ function Detail({ id, onSelect, onDeleted, onClose }: { id: number; onSelect: (i
 }
 
 export default function AiTraces() {
-  const [filters, setFilters] = useState<AiTraceFilters>({ page: 1, pageSize: 50 });
+  // AI-11: "לרישומים" on the guards screen opens this page filtered to one guard (?kind=guard&promptKey=…).
+  const [filters, setFilters] = useState<AiTraceFilters>(() => {
+    const q = new URLSearchParams(window.location.search);
+    return { page: 1, pageSize: 50, kind: q.get('kind') || undefined, promptKey: q.get('promptKey') || undefined };
+  });
   const [userText, setUserText] = useState('');
   const [qText, setQText] = useState('');
   const [list, setList] = useState<AiTraceList | null>(null);
@@ -380,7 +410,7 @@ export default function AiTraces() {
                 <TRow key={r.id} $active={r.id === selected} $guard={r.kind === 'guard'} onClick={() => setSelected(r.id)}>
                   <td style={{ whiteSpace: 'nowrap' }}>{time(r.createdAt)}</td>
                   <td>{r.userId ?? '—'}</td>
-                  <td dir="ltr" style={{ textAlign: 'right' }}>{r.kind === 'guard' ? 'השומר' : r.promptKey ?? r.operation}{r.attempt && r.attempt > 1 ? ` #${r.attempt}` : ''}</td>
+                  <td dir="ltr" style={{ textAlign: 'right' }}>{r.kind === 'guard' ? guardName(r.promptKey) : r.promptKey ?? r.operation}{r.attempt && r.attempt > 1 ? ` #${r.attempt}` : ''}</td>
                   <td dir="ltr" style={{ textAlign: 'right' }}>{r.model ?? ''}</td>
                   <td>{r.kind === 'call' ? `${r.inputTokens}/${r.outputTokens}` : ''}</td>
                   <td>{r.kind === 'call' ? usd(r.costUsd) : ''}</td>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { RotateCcw, Save } from 'lucide-react';
-import { dataSettingsApi, type DataQuestionRow, type DataSettings as Data, type ForecastAccuracyMonth, type QuestionEdit } from '../api/dataSettingsApi';
+import { dataSettingsApi, type DataQuestionRow, type DataSettings as Data, type ForecastAccuracyMonth, type QuestionEdit, type RecRuleEdit, type RecRuleRow } from '../api/dataSettingsApi';
 
 const PageWrap = styled.div`direction: rtl; text-align: right;`;
 const Title = styled.h1`margin: 0 0 0.5rem; font-size: 1.75rem; font-weight: 700; color: #0f172a;`;
@@ -26,7 +26,7 @@ const Ghost = styled(Btn)`background: #fff; color: #334155; border: 1px solid #e
 const ErrorText = styled.p`color: #b91c1c; font-size: 0.875rem;`;
 const Section = styled.h3`margin: 1rem 0 0.5rem; font-size: 1rem;`;
 
-type TabKey = 'numbers' | 'questions' | 'rules' | 'history' | 'accuracy';
+type TabKey = 'numbers' | 'questions' | 'rules' | 'recs' | 'history' | 'accuracy';
 
 const SECTIONS: Record<string, string> = {
   revenue: 'הכנסות', ranking: 'דירוג עבודות', close_rate: 'אחוז סגירה', statuses: 'הצעות לפי סטטוסים', areas: 'הצעות לפי אזורים', close_time: 'זמן ממוצע לסגירה',
@@ -41,6 +41,7 @@ export default function DataSettings() {
   const [tab, setTab] = useState<TabKey>('numbers');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [questionDrafts, setQuestionDrafts] = useState<Record<string, QuestionEdit>>({});
+  const [recDrafts, setRecDrafts] = useState<Record<string, RecRuleEdit>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [accuracy, setAccuracy] = useState<ForecastAccuracyMonth[] | null>(null);
@@ -75,6 +76,11 @@ export default function DataSettings() {
   };
   const setQuestion = (key: string, patch: Partial<QuestionEdit>, base: QuestionEdit) =>
     setQuestionDrafts((d) => ({ ...d, [key]: { ...base, ...patch } }));
+  const recOf = (r: RecRuleRow): RecRuleEdit => recDrafts[r.key] ?? {
+    title: r.title, template: r.template, templateOne: r.templateOne, cta: r.cta, target: r.target, priority: r.priority, isActive: r.isActive,
+  };
+  const setRec = (key: string, patch: Partial<RecRuleEdit>, base: RecRuleEdit) => setRecDrafts((d) => ({ ...d, [key]: { ...base, ...patch } }));
+  const recRules = data.recRules ?? [];
 
   return (
     <PageWrap>
@@ -86,6 +92,7 @@ export default function DataSettings() {
         <Tab $on={tab === 'numbers'} onClick={() => setTab('numbers')}>מספרים ({data.settings.length})</Tab>
         <Tab $on={tab === 'questions'} onClick={() => setTab('questions')}>שאלות ({data.questions.length})</Tab>
         <Tab $on={tab === 'rules'} onClick={() => setTab('rules')}>תובנות ({data.rules.length})</Tab>
+        <Tab $on={tab === 'recs'} onClick={() => setTab('recs')}>המלצות ({recRules.length})</Tab>
         <Tab $on={tab === 'history'} onClick={() => setTab('history')}>היסטוריה</Tab>
         <Tab $on={tab === 'accuracy'} onClick={() => setTab('accuracy')}>דיוק צפי</Tab>
       </Tabs>
@@ -170,6 +177,49 @@ export default function DataSettings() {
           })}
         </div>
       ))}
+
+      {tab === 'recs' && (
+        <>
+          <Desc>
+            ההמלצות ב"היום החכם" ובדף הבית ("המלצות בשבילך"). הקוד מחליט מתי המלצה מופיעה ומחשב את המספרים; כאן עורכים את הכותרת, הנוסח, הכפתור, הסדר (עדיפות נמוכה = קודם) והפעלה.
+          </Desc>
+          {[...recRules].sort((a, b) => a.priority - b.priority).map((r) => {
+            const edit = recOf(r);
+            const id = 'rec:' + r.key;
+            const dirty = !!recDrafts[r.key];
+            return (
+              <Card key={r.key}>
+                <Row>
+                  <Key>{r.key}</Key>
+                  <label>עדיפות <Input type="number" min={1} max={99} style={{ minWidth: 60, width: 60 }} aria-label={`${r.key} priority`} value={edit.priority}
+                    onChange={(e) => setRec(r.key, { priority: Number(e.target.value) }, edit)} /></label>
+                  <label><input type="checkbox" checked={edit.isActive} onChange={(e) => setRec(r.key, { isActive: e.target.checked }, edit)} /> פעילה</label>
+                </Row>
+                <Label>כותרת<Input aria-label={`${r.key} title`} value={edit.title} onChange={(e) => setRec(r.key, { title: e.target.value }, edit)} /></Label>
+                <Label>נוסח (מותר: {r.placeholders.map((p) => `{{${p}}}`).join(' ')})
+                  <Area rows={2} aria-label={`${r.key} template`} value={edit.template} onChange={(e) => setRec(r.key, { template: e.target.value }, edit)} />
+                </Label>
+                {r.placeholders.includes('count') && (
+                  <Label>נוסח כשהמספר הוא 1 (ריק = הנוסח הרגיל)
+                    <Input aria-label={`${r.key} template one`} value={edit.templateOne ?? ''} onChange={(e) => setRec(r.key, { templateOne: e.target.value || null }, edit)} />
+                  </Label>
+                )}
+                <Row>
+                  <Label>טקסט הכפתור (ריק = בלי כפתור משלו)<Input aria-label={`${r.key} cta`} value={edit.cta ?? ''} onChange={(e) => setRec(r.key, { cta: e.target.value || null }, edit)} /></Label>
+                  <Label>יעד (נתיב באפליקציה, מתחיל ב-/)<Input dir="ltr" aria-label={`${r.key} target`} value={edit.target ?? ''} onChange={(e) => setRec(r.key, { target: e.target.value || null }, edit)} /></Label>
+                </Row>
+                <Row style={{ marginTop: '0.5rem' }}>
+                  <Btn type="button" disabled={!dirty || saving === id}
+                    onClick={() => void save(id, () => dataSettingsApi.setRecRule(r.key, edit), () => setRecDrafts((d) => { const n = { ...d }; delete n[r.key]; return n; }))}>
+                    <Save size={14} /> שמור
+                  </Btn>
+                  {dirty && <Ghost type="button" onClick={() => setRecDrafts((d) => { const n = { ...d }; delete n[r.key]; return n; })}><RotateCcw size={14} /> בטל</Ghost>}
+                </Row>
+              </Card>
+            );
+          })}
+        </>
+      )}
 
       {tab === 'accuracy' && (
         <>

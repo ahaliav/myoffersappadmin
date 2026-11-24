@@ -22,4 +22,12 @@ export const agentSettingsApi = {
   setText: (key: string, value: string) => axiosClient.put(`/api/admin/agent-settings/texts/${encodeURIComponent(key)}`, { value }),
   setListItem: (listKey: string, itemKey: string, label: string, isActive: boolean) =>
     axiosClient.put(`/api/admin/agent-settings/lists/${encodeURIComponent(listKey)}/${encodeURIComponent(itemKey)}`, { label, isActive }),
+  /** AI-25: a new ready question on a Today smart screen (general_chips.{screen}); position 1 = first. */
+  addListItem: (listKey: string, body: { itemKey: string; label: string; isActive?: boolean; position?: number }) =>
+    axiosClient.post(`/api/admin/agent-settings/lists/${encodeURIComponent(listKey)}`, body),
+  removeListItem: (listKey: string, itemKey: string) =>
+    axiosClient.delete(`/api/admin/agent-settings/lists/${encodeURIComponent(listKey)}/${encodeURIComponent(itemKey)}`),
+  /** Every item key of the list, once, in the new order. */
+  orderList: (listKey: string, itemKeys: string[]) =>
+    axiosClient.put(`/api/admin/agent-settings/lists/${encodeURIComponent(listKey)}/order`, { itemKeys }),
 };
