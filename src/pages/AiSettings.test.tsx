@@ -15,6 +15,8 @@ vi.mock('../api/aiSettingsApi', async (importOriginal) => {
       updateModel: vi.fn(),
       test: vi.fn(),
       discover: vi.fn(),
+      saveApiKey: vi.fn(),
+      deleteApiKey: vi.fn(),
       audit: vi.fn(),
     },
   };
@@ -217,7 +219,102 @@ describe('AiSettings', () => {
     render(<AiSettings />);
 
     const providers = await screen.findByRole('region', { name: 'ספקים' });
-    expect(within(providers).getByText('Anthropic:ApiKey / ANTHROPIC_API_KEY')).toBeTruthy();
+    expect(within(providers).getByText('אין מפתח')).toBeTruthy();
     expect(providers.textContent).not.toMatch(/sk-/);
+  });
+
+  // ---- API key saved from the screen (made-up keys only) ----
+
+  const FAKE_KEY = 'sk-ant-FAKE-test-key-0000000000000Ab12';
+
+  function withKeys(): AiSettingsOverview {
+    const data = overview();
+    data.providers[0] = { ...data.providers[0], keyManageable: true, keySource: 'config', serverKeyConfigured: true, storedKeyConfigured: false, storedKeyReadable: false };
+    data.providers[1] = { ...data.providers[1], credentialsConfigured: false, keyManageable: true, keySource: 'none', serverKeyConfigured: false, storedKeyConfigured: false, storedKeyReadable: false };
+    return data;
+  }
+
+  function afterSave(): AiSettingsOverview {
+    const data = withKeys();
+    data.providers[1] = {
+      ...data.providers[1], credentialsConfigured: true, keySource: 'database', storedKeyConfigured: true, storedKeyReadable: true,
+      storedKeyLast4: 'Ab12', storedKeyUpdatedAt: '2026-11-25T20:00:00Z', storedKeyUpdatedBy: 'joshua@example.com',
+    };
+    return data;
+  }
+
+  it('pastes a key into a password field, saves it, and shows only its last 4 characters', async () => {
+    api.get.mockImplementation(() => ok(withKeys()));
+    api.saveApiKey.mockImplementation(() => ok(afterSave()));
+    render(<AiSettings />);
+
+    const input = await screen.findByLabelText('מפתח API חדש ל-Anthropic Claude') as HTMLInputElement;
+    expect(input.type).toBe('password');
+    expect(input.autocomplete).toBe('new-password');
+    const save = within(input.closest('form')!).getByRole('button', { name: /שמור/ }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+
+    fireEvent.change(input, { target: { value: `  ${FAKE_KEY}  ` } });
+    fireEvent.click(save);
+
+    await waitFor(() => expect(api.saveApiKey).toHaveBeenCalledWith('anthropic', FAKE_KEY));
+    expect(await screen.findByText((_, el) => el?.tagName === 'SPAN' && el.textContent === 'מוגדר · …Ab12')).toBeTruthy();
+    expect(await screen.findByText(/המפתח נשמר ונכנס לשימוש/)).toBeTruthy();
+    expect(input.value).toBe('');
+    const providers = screen.getByRole('region', { name: 'ספקים' });
+    expect(providers.textContent).not.toContain(FAKE_KEY);
+    expect(providers.textContent).toContain('joshua@example.com');
+  });
+
+  it('shows the server reason when a key is rejected', async () => {
+    api.get.mockImplementation(() => ok(withKeys()));
+    api.saveApiKey.mockImplementation(() => httpError(400, { errors: ['זה נראה כמו מפתח של OpenAI. מפתח של Anthropic תמיד מתחיל ב-sk-ant- ויש להדביק כאן מפתח כזה.'] }));
+    render(<AiSettings />);
+
+    const input = await screen.findByLabelText('מפתח API חדש ל-Anthropic Claude') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'sk-proj-FAKE-000000000000000000' } });
+    fireEvent.submit(input.closest('form')!);
+
+    expect(await screen.findByText(/זה נראה כמו מפתח של OpenAI/)).toBeTruthy();
+    expect(screen.getByText('אין מפתח')).toBeTruthy();
+  });
+
+  it('deletes a saved key only after confirmation, and says what happens next', async () => {
+    api.get.mockImplementation(() => ok(afterSave()));
+    api.deleteApiKey.mockImplementation(() => ok(withKeys()));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    render(<AiSettings />);
+
+    const del = await screen.findByRole('button', { name: /מחק/ });
+    fireEvent.click(del);
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(confirm.mock.calls[0][0]).toContain('יישאר בלי מפתח');
+    expect(api.deleteApiKey).not.toHaveBeenCalled();
+
+    fireEvent.click(del);
+    await waitFor(() => expect(api.deleteApiKey).toHaveBeenCalledWith('anthropic'));
+    expect(await screen.findByText('אין מפתח')).toBeTruthy();
+    confirm.mockRestore();
+  });
+
+  it('asks to enter the key again when the saved one can no longer be read', async () => {
+    const data = afterSave();
+    data.providers[1] = { ...data.providers[1], storedKeyReadable: false, keySource: 'none', credentialsConfigured: false };
+    api.get.mockImplementation(() => ok(data));
+    render(<AiSettings />);
+
+    expect(await screen.findByText(/המפתח השמור לא נקרא/)).toBeTruthy();
+  });
+
+  it('tests the connection from the provider row with the model the app uses', async () => {
+    api.get.mockImplementation(() => ok(afterSave()));
+    api.test.mockImplementation(() => ok({ success: true, message: 'OK', providerKey: 'anthropic', modelKey: 'claude-sonnet-5-5', elapsedMs: 90, testedAt: '' }));
+    render(<AiSettings />);
+
+    const input = await screen.findByLabelText('מפתח API חדש ל-Anthropic Claude');
+    fireEvent.click(within(input.closest('form')!).getByRole('button', { name: /בדיקת חיבור/ }));
+
+    await waitFor(() => expect(api.test).toHaveBeenCalledWith(4));
+    expect(await screen.findByText('החיבור תקין (claude-sonnet-5-5)')).toBeTruthy();
   });
 });

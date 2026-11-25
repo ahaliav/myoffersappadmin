@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import {
-  RefreshCw, Save, X, PlugZap, CheckCircle2, XCircle, AlertTriangle, Plus, Pencil, Search, History, ShieldAlert,
+  RefreshCw, Save, X, PlugZap, CheckCircle2, XCircle, AlertTriangle, Plus, Pencil, Search, History, ShieldAlert, KeyRound, Trash2,
 } from 'lucide-react';
 import {
   aiSettingsApi, apiErrorMessage,
@@ -12,7 +12,8 @@ import {
 // ---------------------------------------------------------------------------------------------
 // Admin "AI Settings": which provider/model the app uses, the model catalog, connection tests and
 // the change history. The server is the source of truth: this screen only edits a draft and sends
-// it for validation + activation. API keys never reach the browser (only "configured: yes/no").
+// it for validation + activation. An API key can be pasted and sent (write-only): it never comes back to
+// the browser, only "configured · …last 4".
 // ---------------------------------------------------------------------------------------------
 
 const CAPABILITY_LABELS: Record<string, string> = {
@@ -66,7 +67,7 @@ function modelProblem(model: AiModel | undefined, provider: AiProvider | undefin
   if (!model.enabled) return 'המודל מושבת';
   if (!provider) return 'ספק לא מוכר';
   if (!provider.enabled) return `הספק ${provider.name} מושבת`;
-  if (!provider.credentialsConfigured) return `אין מפתח API בשרת ל-${provider.name}`;
+  if (!provider.credentialsConfigured) return `אין מפתח API ל-${provider.name}`;
   const available = model.capabilities.filter((c) => provider.supportedCapabilities.includes(c));
   const missing = required.filter((c) => !available.includes(c));
   return missing.length ? `חסר: ${missing.map(capLabel).join(', ')}` : null;
@@ -423,6 +424,26 @@ export default function AiSettings() {
     }
   };
 
+  /** Saves or deletes a provider's API key. Returns an error message for the row, or null. */
+  const changeApiKey = async (key: string, apiKey: string | null): Promise<string | null> => {
+    setProviderError(null);
+    try {
+      const res = apiKey === null ? await aiSettingsApi.deleteApiKey(key) : await aiSettingsApi.saveApiKey(key, apiKey);
+      setOverview(res.data);
+      if (!dirty) setDraft(draftFrom(res.data));
+      void loadAudit();
+      return null;
+    } catch (err) {
+      return apiErrorMessage(err, apiKey === null ? 'מחיקת המפתח נכשלה.' : 'שמירת המפתח נכשלה.');
+    }
+  };
+
+  /** "Test connection" from the provider row: the model of this provider that the app uses, else its first enabled one. */
+  const testModelFor = (providerKey: string): AiModel | undefined => {
+    const own = overview?.models.filter((m) => m.providerKey === providerKey) ?? [];
+    return own.find((m) => m.usedBy.length > 0) ?? own.find((m) => m.enabled) ?? own[0];
+  };
+
   const discover = async (key: string) => {
     setProviderError(null);
     try {
@@ -656,7 +677,7 @@ export default function AiSettings() {
       {/* ---------------------------------------------------- providers */}
       <Card aria-label="ספקים">
         <CardTitle>ספקים</CardTitle>
-        <Muted>מפתחות ה-API נשמרים בשרת בלבד (קובץ ‎.env או משתני סביבה) ולא מוצגים כאן. כדי להחליף מפתח מעדכנים אותו בשרת ומפעילים מחדש את השירות.</Muted>
+        <Muted>אפשר להדביק כאן מפתח API ולשמור. המפתח נשמר מוצפן בשרת, ואחרי השמירה רואים רק את 4 התווים האחרונים שלו. מפתח שנשמר כאן קודם למפתח שבקובץ ‎.env של השרת, והוא נכנס לשימוש מיד. מחיקה מחזירה למפתח שבשרת, אם יש כזה.</Muted>
         {providerError && <Banner $tone="bad" role="alert"><XCircle size={18} /> {providerError}</Banner>}
         <TableWrap>
           <Table>
@@ -665,7 +686,11 @@ export default function AiSettings() {
             </thead>
             <tbody>
               {overview.providers.map((p) => (
-                <ProviderRow key={p.key} provider={p} onUpdate={updateProvider} onDiscover={discover} />
+                <ProviderRow
+                  key={p.key} provider={p} onUpdate={updateProvider} onDiscover={discover} onApiKey={changeApiKey}
+                  testModel={testModelFor(p.key)} test={(() => { const m = testModelFor(p.key); return m ? tests[m.id] : undefined; })()}
+                  onTest={runTest}
+                />
               ))}
             </tbody>
           </Table>
@@ -871,10 +896,14 @@ function ModelOptions({ models, providers }: { models: AiModel[]; providers: Map
   );
 }
 
-function ProviderRow({ provider, onUpdate, onDiscover }: {
+function ProviderRow({ provider, onUpdate, onDiscover, onApiKey, testModel, test, onTest }: {
   provider: AiProvider;
   onUpdate: (key: string, body: { enabled?: boolean; timeoutSeconds?: number }) => Promise<void>;
   onDiscover: (key: string) => Promise<void>;
+  onApiKey: (key: string, apiKey: string | null) => Promise<string | null>;
+  testModel?: AiModel;
+  test?: AiTestResult | 'running' | { error: string };
+  onTest: (modelId: number) => Promise<void>;
 }) {
   const [timeout, setTimeoutValue] = useState(String(provider.timeoutSeconds));
   const [busy, setBusy] = useState(false);
@@ -893,9 +922,7 @@ function ProviderRow({ provider, onUpdate, onDiscover }: {
         />
       </td>
       <td>
-        {provider.credentialsConfigured
-          ? <Chip $tone="ok">מוגדר בשרת</Chip>
-          : <Chip $tone="bad">חסר: <Code>{provider.credentialsSource}</Code></Chip>}
+        <ApiKeyCell provider={provider} onApiKey={onApiKey} testModel={testModel} test={test} onTest={onTest} />
       </td>
       <td>
         <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
@@ -920,6 +947,113 @@ function ProviderRow({ provider, onUpdate, onDiscover }: {
         </Btn>
       </td>
     </tr>
+  );
+}
+
+/** Where the provider's key comes from, plus paste / save / delete of a key saved from this screen. */
+function ApiKeyCell({ provider, onApiKey, testModel, test, onTest }: {
+  provider: AiProvider;
+  onApiKey: (key: string, apiKey: string | null) => Promise<string | null>;
+  testModel?: AiModel;
+  test?: AiTestResult | 'running' | { error: string };
+  onTest: (modelId: number) => Promise<void>;
+}) {
+  const [value, setValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [testedHere, setTestedHere] = useState(false);
+
+  const stored = provider.storedKeyConfigured === true;
+  const unreadable = stored && provider.storedKeyReadable === false;
+  const source = provider.keySource ?? (provider.credentialsConfigured ? 'config' : 'none');
+
+  const run = async (apiKey: string | null, doneText: string) => {
+    setBusy(true);
+    setError(null);
+    setSaved(null);
+    try {
+      const problem = await onApiKey(provider.key, apiKey);
+      if (problem) setError(problem);
+      else { setValue(''); setSaved(doneText); }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = () => void run(value.trim(), 'המפתח נשמר ונכנס לשימוש. כדאי ללחוץ "בדיקת חיבור".');
+  const remove = () => {
+    const after = provider.serverKeyConfigured
+      ? 'אחרי המחיקה ישמש שוב המפתח שבשרת.'
+      : 'אין מפתח בשרת, ולכן אחרי המחיקה הספק יישאר בלי מפתח וה-AI שלו יפסיק לעבוד.';
+    if (!window.confirm(`למחוק את המפתח השמור של ${provider.name}? ${after}`)) return;
+    void run(null, 'המפתח השמור נמחק.');
+  };
+
+  let status;
+  if (unreadable) status = <Chip $tone="bad">המפתח השמור לא נקרא. יש להדביק אותו שוב</Chip>;
+  else if (source === 'database') status = <Chip $tone="ok">מוגדר · <bdi dir="ltr">…{provider.storedKeyLast4}</bdi></Chip>;
+  else if (source === 'config' || source === 'environment') status = <Chip $tone="ok">מוגדר בשרת</Chip>;
+  else status = <Chip $tone="bad">אין מפתח</Chip>;
+
+  const testText = !testedHere ? null : test === 'running' ? 'בודק…'
+    : test && 'error' in test ? test.error
+      : test ? (test.success ? `החיבור תקין (${testModel?.modelKey})` : test.message) : null;
+  const testOk = !!test && test !== 'running' && !('error' in test) && test.success;
+
+  return (
+    <div style={{ display: 'grid', gap: '0.35rem', minWidth: '16rem' }}>
+      <div>{status}</div>
+      {stored && !unreadable && (
+        <Muted style={{ margin: 0, fontSize: '0.8rem' }}>
+          נשמר בממשק · {formatDate(provider.storedKeyUpdatedAt)}{provider.storedKeyUpdatedBy ? ` · ${provider.storedKeyUpdatedBy}` : ''}
+        </Muted>
+      )}
+      {provider.keyManageable && (
+        <form
+          style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}
+          onSubmit={(e) => { e.preventDefault(); if (value.trim()) save(); }}
+        >
+          <Input
+            aria-label={`מפתח API חדש ל-${provider.name}`}
+            type="password"
+            autoComplete="new-password"
+            spellCheck={false}
+            dir="ltr"
+            placeholder={stored ? 'הדבקת מפתח חדש להחלפה' : 'הדבקת מפתח API'}
+            value={value}
+            disabled={busy}
+            style={{ width: '14rem' }}
+            onChange={(e) => { setValue(e.target.value); setError(null); setSaved(null); }}
+          />
+          <Btn type="submit" $variant="primary" disabled={busy || !value.trim()}>
+            <KeyRound size={14} /> שמור
+          </Btn>
+          {stored && (
+            <Btn type="button" $variant="danger" disabled={busy} onClick={remove}>
+              <Trash2 size={14} /> מחק
+            </Btn>
+          )}
+          {testModel && (
+            <Btn
+              type="button" $variant="secondary"
+              disabled={busy || test === 'running' || !provider.credentialsConfigured}
+              title={`בדיקת חיבור עם ${testModel.modelKey}`}
+              onClick={() => { setTestedHere(true); void onTest(testModel.id); }}
+            >
+              <PlugZap size={14} /> בדיקת חיבור
+            </Btn>
+          )}
+        </form>
+      )}
+      {error && <Banner $tone="bad" role="alert" style={{ margin: 0 }}><XCircle size={16} /> {error}</Banner>}
+      {saved && <Banner $tone="ok" role="status" style={{ margin: 0 }}><CheckCircle2 size={16} /> {saved}</Banner>}
+      {testText && (
+        <Banner $tone={test === 'running' ? 'warn' : testOk ? 'ok' : 'bad'} role="status" style={{ margin: 0 }}>
+          {testOk ? <CheckCircle2 size={16} /> : test === 'running' ? <RefreshCw size={16} /> : <XCircle size={16} />} {testText}
+        </Banner>
+      )}
+    </div>
   );
 }
 
