@@ -12,10 +12,25 @@ interface EvalCase { id: string; description: string; feature: string }
 interface EvalResult { id: string; description: string; passed: boolean; status: string; failures: string[]; latencyMs: number; provider: string | null; model: string | null }
 interface EvalReport { ranAt: string; total: number; passed: number; results: EvalResult[] }
 
+/**
+ * AI-25 (live 25.11): a whole set in one request ran longer than the server waits (~100 s) and failed; small batches of
+ * ids, one after another, each finish in seconds. onBatch reports how many ran so far.
+ */
+async function runInBatches<R extends { results: unknown[] }>(url: string, ids: string[], size: number, onBatch: (done: number) => void): Promise<R['results']> {
+  const all: R['results'] = [];
+  for (let i = 0; i < ids.length; i += size) {
+    const { data } = await axiosClient.post<R>(url, { ids: ids.slice(i, i + size) });
+    all.push(...data.results);
+    onBatch(Math.min(i + size, ids.length));
+  }
+  return all;
+}
+
 export default function AiEvalCard() {
   const [cases, setCases] = useState<EvalCase[]>([]);
   const [report, setReport] = useState<EvalReport | null>(null);
   const [running, setRunning] = useState(false);
+  const [done, setDone] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -27,8 +42,9 @@ export default function AiEvalCard() {
     setRunning(true);
     setError(null);
     try {
-      const { data } = await axiosClient.post<EvalReport>('/api/admin/ai-eval/run', {});
-      setReport(data);
+      setDone(0);
+      const results = await runInBatches<EvalReport>('/api/admin/ai-eval/run', cases.map((c) => c.id), 5, setDone) as EvalResult[];
+      setReport({ ranAt: new Date().toISOString(), total: results.length, passed: results.filter((r) => r.passed).length, results });
     } catch (e) {
       setError(apiErrorMessage(e, 'ההרצה נכשלה'));
     } finally {
@@ -41,7 +57,7 @@ export default function AiEvalCard() {
       <Head>
         <h2>בדיקות איכות ({cases.length})</h2>
         <RunBtn type="button" onClick={() => void run()} disabled={running || cases.length === 0}>
-          <Play size={14} /> {running ? 'מריץ…' : 'הרץ את כל הבדיקות'}
+          <Play size={14} /> {running ? `מריץ… ${done}/${cases.length}` : 'הרץ את כל הבדיקות'}
         </RunBtn>
       </Head>
       <Muted>מקרים סינתטיים בלבד, דרך הפרומפטים שפורסמו והמודל שמוגדר. בודק כללים קשיחים: מבנה, בלי מספרים או מחירים מומצאים, שמירת המותג של המשתמש, עמידות להזרקה.</Muted>
@@ -82,13 +98,15 @@ export function RouterEvalCard({ title = 'נתב Today smart', path = 'router', 
   path?: 'router' | 'client-router';
   offMessage?: string;
 } = {}) {
-  const [count, setCount] = useState(0);
+  const [ids, setIds] = useState<string[]>([]);
+  const count = ids.length;
   const [report, setReport] = useState<RouterReport | null>(null);
   const [running, setRunning] = useState(false);
+  const [done, setDone] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    axiosClient.get<unknown[]>(`/api/admin/ai-eval/${path}-cases`).then((r) => setCount(r.data.length)).catch(() => setCount(0));
+    axiosClient.get<{ id: string }[]>(`/api/admin/ai-eval/${path}-cases`).then((r) => setIds(r.data.map((c) => c.id))).catch(() => setIds([]));
   }, [path]);
 
   const run = async () => {
@@ -96,8 +114,11 @@ export function RouterEvalCard({ title = 'נתב Today smart', path = 'router', 
     setRunning(true);
     setError(null);
     try {
-      const { data } = await axiosClient.post<RouterReport>(`/api/admin/ai-eval/${path}-run`, {});
-      setReport(data);
+      setDone(0);
+      const results = await runInBatches<RouterReport>(`/api/admin/ai-eval/${path}-run`, ids, 10, setDone) as RouterReport['results'];
+      const passed = results.filter((r) => r.passed).length;
+      setReport({ ranAt: new Date().toISOString(), total: results.length, passed,
+        percent: results.length === 0 ? 0 : Math.round((passed * 1000) / results.length) / 10, results });
     } catch (e) {
       setError(apiErrorMessage(e, offMessage));
     } finally {
@@ -111,7 +132,7 @@ export function RouterEvalCard({ title = 'נתב Today smart', path = 'router', 
       <Head>
         <h2>{title} ({count} משפטים)</h2>
         <RunBtn type="button" onClick={() => void run()} disabled={running || count === 0}>
-          <Play size={14} /> {running ? 'מריץ…' : 'הרץ'}
+          <Play size={14} /> {running ? `מריץ… ${done}/${count}` : 'הרץ'}
         </RunBtn>
       </Head>
       <Muted>כל משפט עובר בנתב ובבדיקות של הקוד, ונבדק מול הכוונה והמפתח שהוא צריך לקבל. היעד: 95% ומעלה.</Muted>
