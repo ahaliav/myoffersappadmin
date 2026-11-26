@@ -11,12 +11,12 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # nginx serves admin.ahaliav.me from $SITE_DIR/dist (/home/ahaliav/myoffersappadmin/dist on the VPS). Override with
+  # nginx serves admin.todayapp.co.il from $SITE_DIR/dist (/home/ahaliav/myoffersappadmin/dist on the VPS). Override with
   # the repository variable ADMIN_SITE_DIR if that changes; the deploy refuses to run if the directory doesn't exist.
   SITE_DIR: ${{ vars.ADMIN_SITE_DIR || '/home/ahaliav/myoffersappadmin' }}
   STAGE_DIR: /home/ahaliav/deploy-staging/myoffersappadmin
   # The public address of the admin site, checked after the swap.
-  ADMIN_URL: ${{ vars.ADMIN_URL || 'https://admin.ahaliav.me' }}
+  ADMIN_URL: ${{ vars.ADMIN_URL || 'https://admin.todayapp.co.il' }}
 
 jobs:
   deploy:
@@ -40,7 +40,7 @@ jobs:
         run: npm test
 
       # Vite inlines env vars at build time, so .env has to exist before `npm run build`.
-      # Both are optional: VITE_API_BASE_URL falls back to https://ahaliav.me/api/, and without
+      # Both are optional: VITE_API_BASE_URL falls back to https://my.todayapp.co.il/api/, and without
       # VITE_GOOGLE_CLIENT_ID the login page shows email + password only.
       - name: Write .env for the build
         env:

@@ -1,9 +1,9 @@
 import axios from 'axios';
 import { clearToken, getToken, setToken } from '../lib/authStorage';
 
-// baseURL = origin only (e.g. https://ahaliav.me). Paths = /api/admin/... so final URL has single /api
+// baseURL = origin only (e.g. https://my.todayapp.co.il). Paths = /api/admin/... so final URL has single /api
 const axiosClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://ahaliav.me/api/',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://my.todayapp.co.il/api/',
   headers: { 'Content-Type': 'application/json' },
 });
 
