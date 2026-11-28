@@ -6,9 +6,11 @@ import {
   whatsAppAdminApi,
   type WaBusiness,
   type WaDeadRow,
+  type WaGraphResult,
   type WaHealth,
   type WaLinkRow,
   type WaLogRow,
+  type WaNumberState,
   type WaSettingRow,
   type WaText,
 } from '../api/whatsAppAdminApi';
@@ -50,9 +52,10 @@ const Btn = styled.button<{ $secondary?: boolean; $danger?: boolean }>`
 const Status = styled.p<{ $error?: boolean }>`color: ${({ $error }) => ($error ? '#b91c1c' : '#047857')}; font-size: 0.875rem; margin: 0.5rem 0;`;
 const Scroll = styled.div`overflow-x: auto;`;
 
-type TabKey = 'health' | 'businesses' | 'settings' | 'texts' | 'log' | 'links';
+type TabKey = 'health' | 'number' | 'businesses' | 'settings' | 'texts' | 'log' | 'links';
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'health', label: 'מצב' },
+  { key: 'number', label: 'מספר הבוט' },
   { key: 'businesses', label: 'עסקים' },
   { key: 'settings', label: 'הגדרות' },
   { key: 'texts', label: 'טקסטים' },
@@ -98,6 +101,7 @@ export default function WhatsAppChannel() {
       </Tabs>
       {status && <Status $error={status.error} role={status.error ? 'alert' : 'status'}>{status.text}</Status>}
       {tab === 'health' && <HealthTab say={say} />}
+      {tab === 'number' && <NumberTab say={say} />}
       {tab === 'businesses' && <BusinessesTab say={say} />}
       {tab === 'settings' && <SettingsTab say={say} />}
       {tab === 'texts' && <TextsTab say={say} />}
@@ -450,6 +454,149 @@ function LinksTab({ say }: { say: Say }) {
           </tbody>
         </Table></Scroll>
       )}
+    </>
+  );
+}
+
+const Steps = styled.div`display: grid; gap: 0.75rem; max-width: 760px;`;
+const Step = styled.section`border: 1px solid #e2e8f0; border-radius: 12px; padding: 0.85rem 1rem; background: #fff;`;
+const StepTitle = styled.h3`font-size: 1rem; margin: 0 0 0.25rem; color: #0f172a;`;
+const Field = styled.label`display: grid; gap: 0.2rem; font-size: 0.82rem; color: #334155; min-width: 180px; flex: 1;`;
+const Result = styled.div<{ $ok: boolean }>`margin-top: 0.5rem; font-size: 0.85rem; color: ${({ $ok }) => ($ok ? '#047857' : '#b91c1c')};`;
+const Current = styled.div`background: #f8fafc; border-radius: 12px; padding: 0.75rem 1rem; max-width: 760px; margin-bottom: 0.75rem; font-size: 0.9rem; line-height: 1.7;`;
+
+const digits = (v: string) => v.replace(/\D/g, '');
+
+/**
+ * Joshua 28.11: the bot's number from here, without the server. The three steps of the hand-off file: register the
+ * number with the two-step PIN (typed here, sent to Meta through the server, never kept), connect the app to the
+ * WhatsApp account, and switch the number the bot sends from (applies at once; empty = the server file's number).
+ */
+function NumberTab({ say }: { say: Say }) {
+  const [state, setState] = useState<WaNumberState | null>(null);
+  const [hasToken, setHasToken] = useState(true);
+  const [regId, setRegId] = useState('');
+  const [pin, setPin] = useState('');
+  const [regResult, setRegResult] = useState<WaGraphResult | null>(null);
+  const [wabaIds, setWabaIds] = useState('');
+  const [subResults, setSubResults] = useState<WaGraphResult[] | null>(null);
+  const [newId, setNewId] = useState('');
+  const [newNumber, setNewNumber] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await whatsAppAdminApi.number();
+      setState(r.state);
+      setHasToken(r.hasToken);
+    } catch {
+      say('לא הצלחתי לטעון את מספר הבוט', true);
+    }
+  }, [say]);
+  useEffect(() => { void load(); }, [load]);
+
+  const register = async () => {
+    setBusy(true);
+    setRegResult(null);
+    const typed = pin;
+    setPin(''); // the PIN leaves the screen at once, whatever Meta answers
+    try {
+      setRegResult(await whatsAppAdminApi.registerNumber(digits(regId), typed));
+    } catch (e) {
+      say(waErrorText(e), true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const subscribe = async () => {
+    setBusy(true);
+    setSubResults(null);
+    try {
+      const ids = wabaIds.split(/[\s,]+/).map(digits).filter(Boolean);
+      setSubResults((await whatsAppAdminApi.subscribe(ids)).results);
+    } catch (e) {
+      say(waErrorText(e), true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const switchNumber = async (reset: boolean) => {
+    const question = reset
+      ? 'לחזור למספר שכתוב בקובץ של השרת? הבוט יעבור אליו מיד.'
+      : `להחליף את מספר הבוט ל-${newNumber}? מעכשיו הבוט שולח ומקבל רק מהמספר הזה.`;
+    if (!window.confirm(question)) return;
+    setBusy(true);
+    try {
+      const r = await whatsAppAdminApi.setNumber(reset ? '' : digits(newId), reset ? '' : newNumber);
+      setState(r.state);
+      say(reset ? 'הבוט חזר למספר שבקובץ של השרת.' : 'המספר הוחלף. הבוט שולח עכשיו מהמספר החדש.');
+    } catch (e) {
+      say(waErrorText(e), true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!state) return <Muted>טוען…</Muted>;
+  return (
+    <>
+      <Current aria-label="המספר שבשימוש">
+        <div>המספר שבשימוש: <Code>{state.botNumber ?? '—'}</Code> · מזהה המספר <Code>{state.phoneNumberId ?? '—'}</Code></div>
+        <div>מקור: {state.source === 'admin' ? 'נקבע במסך הזה' : 'הקובץ של השרת'}{state.source === 'admin' && <> · בקובץ: <Code>{state.fileBotNumber ?? '—'}</Code></>}</div>
+        {!hasToken && <Status $error role="alert">אין בשרת מפתח גישה של מטא. צעדים 1 ו-2 לא יעבדו עד שיהיה.</Status>}
+      </Current>
+      <Steps>
+        <Step aria-label="צעד 1: רישום המספר">
+          <StepTitle>1 · רישום המספר עם PIN</StepTitle>
+          <Muted>ה-PIN נשלח דרך השרת למטא בלבד. הוא לא נשמר, לא נכתב ביומן, ונמחק מהמסך מיד אחרי השליחה.</Muted>
+          <Row style={{ marginTop: '0.5rem' }}>
+            <Field>מזהה המספר במטא (Phone Number ID)
+              <Input value={regId} onChange={(e) => setRegId(e.target.value)} inputMode="numeric" dir="ltr" placeholder="1460435107154085" />
+            </Field>
+            <Field>PIN (6 ספרות)
+              <Input type="password" value={pin} onChange={(e) => setPin(digits(e.target.value).slice(0, 6))} inputMode="numeric" autoComplete="off" dir="ltr" aria-label="PIN" />
+            </Field>
+            <Btn type="button" disabled={busy || pin.length !== 6 || !digits(regId)} onClick={() => void register()}>לרשום את המספר</Btn>
+          </Row>
+          {regResult && <Result $ok={regResult.success} role="status">{regResult.success ? '✓ מטא אישרה: המספר רשום.' : regResult.status === 0 ? regResult.message : `מטא החזירה (${regResult.status}): ${regResult.message}`}</Result>}
+        </Step>
+
+        <Step aria-label="צעד 2: חיבור האפליקציה לחשבון">
+          <StepTitle>2 · חיבור האפליקציה לחשבון הוואטסאפ</StepTitle>
+          <Muted>אפשר לכתוב שני מזהים (מטא שינו את המבנה). מספיק שאחד מהם יצליח.</Muted>
+          <Row style={{ marginTop: '0.5rem' }}>
+            <Field>מזהי החשבון (WABA), מופרדים בפסיק
+              <Input value={wabaIds} onChange={(e) => setWabaIds(e.target.value)} dir="ltr" placeholder="1652281143307230, 1813842429849300" />
+            </Field>
+            <Btn type="button" disabled={busy || !digits(wabaIds)} onClick={() => void subscribe()}>לחבר</Btn>
+          </Row>
+          {subResults && (
+            <div role="status">
+              {subResults.map((r) => (
+                <Result key={r.id} $ok={r.success}><Code>{r.id}</Code> · {r.success ? '✓ חובר' : r.status === 0 ? `לא חובר: ${r.message}` : `לא חובר (${r.status}): ${r.message}`}</Result>
+              ))}
+              {subResults.some((r) => r.success) && <Result $ok>מספיק: אחד המזהים חובר.</Result>}
+            </div>
+          )}
+        </Step>
+
+        <Step aria-label="צעד 3: החלפת המספר">
+          <StepTitle>3 · המספר שהבוט שולח ממנו</StepTitle>
+          <Muted>חל מיד, בלי הפעלה מחדש. כדאי רק אחרי שצעדים 1 ו-2 הצליחו.</Muted>
+          <Row style={{ marginTop: '0.5rem' }}>
+            <Field>מזהה המספר במטא
+              <Input value={newId} onChange={(e) => setNewId(e.target.value)} inputMode="numeric" dir="ltr" placeholder="1460435107154085" />
+            </Field>
+            <Field>מספר הטלפון של הבוט
+              <Input value={newNumber} onChange={(e) => setNewNumber(e.target.value)} inputMode="tel" dir="ltr" placeholder="050-583-1847" />
+            </Field>
+            <Btn type="button" disabled={busy || !digits(newId) || digits(newNumber).length < 10} onClick={() => void switchNumber(false)}>להחליף את המספר</Btn>
+          </Row>
+          {state.source === 'admin' && <Btn $secondary type="button" disabled={busy} onClick={() => void switchNumber(true)}>לחזור למספר שבקובץ של השרת</Btn>}
+        </Step>
+      </Steps>
     </>
   );
 }

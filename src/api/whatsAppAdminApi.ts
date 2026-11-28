@@ -80,6 +80,17 @@ export interface WaLinkRow {
   phone: string;
 }
 
+/** The bot's number (Joshua 28.11): the one in use, and whether it came from this screen or the server's file. */
+export interface WaNumberState {
+  phoneNumberId: string | null;
+  botNumber: string | null;
+  source: 'admin' | 'file';
+  filePhoneNumberId: string | null;
+  fileBotNumber: string | null;
+}
+/** What Meta answered (never holds the PIN). */
+export interface WaGraphResult { id: string; success: boolean; status: number; message: string }
+
 export interface WaDeadRow { id: number; waMessageId: string; type: string; receivedAt: string; attempts: number; lastError: string | null }
 
 export const whatsAppAdminApi = {
@@ -97,6 +108,14 @@ export const whatsAppAdminApi = {
   links: (businessId?: number) => axiosClient.get<WaLinkRow[]>('/api/admin/whatsapp/links', { params: { businessId } }).then((r) => r.data),
   dead: () => axiosClient.get<WaDeadRow[]>('/api/admin/whatsapp/dead').then((r) => r.data),
   requeue: () => axiosClient.post<{ requeued: number }>('/api/admin/whatsapp/dead/requeue').then((r) => r.data),
+  number: () => axiosClient.get<{ state: WaNumberState; hasToken: boolean }>('/api/admin/whatsapp/number').then((r) => r.data),
+  /** The PIN goes to the server and from there to Meta only; it is not kept anywhere here. */
+  registerNumber: (phoneNumberId: string, pin: string) =>
+    axiosClient.post<WaGraphResult>('/api/admin/whatsapp/number/register', { phoneNumberId, pin }).then((r) => r.data),
+  subscribe: (wabaIds: string[]) =>
+    axiosClient.post<{ results: WaGraphResult[]; anySuccess: boolean }>('/api/admin/whatsapp/number/subscribe', { wabaIds }).then((r) => r.data),
+  setNumber: (phoneNumberId: string, botNumber: string) =>
+    axiosClient.put<{ state: WaNumberState }>('/api/admin/whatsapp/number', { phoneNumberId, botNumber }).then((r) => r.data),
 };
 
 /** The server's error code ("bad_value", "button_too_long", …) as a Hebrew sentence. */
@@ -112,6 +131,11 @@ export function waErrorText(e: unknown): string {
     case 'bad_roles': return 'תפקידים: owner חייב להיות ברשימה, ורק owner / manager / employee.';
     case 'unknown_setting': return 'אין הגדרה כזו.';
     case 'not_found': return 'העסק לא נמצא.';
+    case 'bad_pin': return 'ה-PIN צריך להיות בדיוק 6 ספרות.';
+    case 'bad_phone_number_id': return 'מזהה המספר: ספרות בלבד, כמו שמופיע במטא.';
+    case 'bad_waba_ids': return 'צריך 1 עד 3 מזהי חשבון, ספרות בלבד.';
+    case 'bad_bot_number': return 'מספר הבוט: מספר טלפון מלא, למשל 050-583-1847.';
+    case 'no_token': return 'אין בשרת מפתח גישה של מטא, ולכן אי אפשר לשלוח את הבקשה.';
     default: return 'השמירה נכשלה';
   }
 }
